@@ -116,6 +116,17 @@ function Water() {
   uniform float uTime;uniform vec3 uWater,uDeep,uGlint;
   varying vec3 vWorld;
   float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+
+  // One expanding ring, drawn rather than simulated: a thin bright circle that
+  // spreads from a point and fades as it goes. Hard-edged to match everything
+  // else in the scene — a soft normal-mapped ripple would be the only
+  // photographic thing in a flat-shaded picture.
+  float ripple(vec2 p,vec2 centre,float period,float phase,float reach){
+   float t=fract(uTime/period+phase);
+   float ring=smoothstep(1.9,0.45,abs(distance(p,centre)-t*reach));
+   return ring*(1.-t)*(1.-t);            // squared, so it dies out near the edge
+  }
+
   void main(){
    float far=smoothstep(20.,150.,-vWorld.z);
    vec3 col=mix(uDeep,uWater,far*.8+.2);
@@ -136,6 +147,15 @@ function Water() {
    float row2=floor(-vWorld.z*.55+3.);
    float wave2=sin(vWorld.x*.17-hash(vec2(row2,11.))*6.28-uTime*.3);
    glint+=smoothstep(.88,1.,wave2)*step(.78,hash(vec2(row2,5.)))*.8;
+
+   // Rings from a few fixed points, each on its own period so they never
+   // arrive together and the surface never pulses on one beat.
+   vec2 p=vWorld.xz;
+   float rings=ripple(p,vec2(62.,-30.),7.4,0.,27.)
+             + ripple(p,vec2(88.,-62.),9.1,.37,23.)
+             + ripple(p,vec2(58.,-95.),11.3,.62,30.)
+             + ripple(p,vec2(95.,-40.),8.3,.18,25.);
+   glint+=rings*.9;
 
    // Fade toward the far shore, where the surface compresses to nothing on
    // screen and anything fine enough to see up close turns into noise.

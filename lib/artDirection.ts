@@ -34,9 +34,9 @@ export const PALETTE = {
  * reaches the sea. One journey, one continuous time of day.
  */
 export const SKY = {
-  dayTop:      '#9fb8cc',   // blue overhead; the warm band stays at the horizon
-  dayMid:      '#dcdcd6',
-  dayHorizon:  '#f7ead8',
+  dayTop:      '#eec4ac',   // pale peach overhead, answering the coral trail
+  dayMid:      '#f6dbc7',
+  dayHorizon:  '#fbeedf',
   duskTop:     '#2f4a63',
   duskMid:     '#b0837f',
   duskHorizon: '#f6c79a',

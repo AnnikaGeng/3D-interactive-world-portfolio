@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAKE, hash, lakeMask, lakeShore, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
+import { LAKE, elevation, hash, lakeMask, lakeShore, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
 import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -69,10 +69,13 @@ function Vegetation() {
  }).filter(t=>{
   if(Math.abs(t.x-pathX(t.s))<8) return false;
   if(underwater(t.x,t.s)) return false;          // nothing grows in the sea
-  // Thin them out over the sunlit coral bank. In the reference the trees ring
-  // that slope rather than covering it, which is what lets it read as a shape.
-  const bank=smooth(1,30,t.x-pathX(t.s))*(1-smooth(34,125,t.x-pathX(t.s)));
-  if(hash(t.x*3.1,t.s*2.7) < bank*.5) return false;
+  // Trees belong on the valley sides, climbing from about knee height on the
+  // slope. The floor is the lightest thing in the frame and the headline sits
+  // on it — scattering trees across it muddies the picture and eats the type.
+  const above=terrainHeight(t.x,t.s)-elevation(t.s);
+  const onlyInValley=1-smooth(420,760,t.s);
+  const keep=Math.min(1,smooth(4,36,above)+(1-onlyInValley));
+  if(hash(t.x*3.1,t.s*2.7) > keep) return false;
   return hash(t.s,t.x) > smooth(48,104,terrainHeight(t.x,t.s));
  }),[]);
  useEffect(()=>{

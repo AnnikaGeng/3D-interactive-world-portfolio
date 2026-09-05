@@ -81,10 +81,24 @@ export function surfaceHeight(x:number,s:number) {
 }
 export function makeTrail(s0=-140,s1=1315,width=2.3) {
   const p=[],indices=[],uv=[];const n=Math.ceil((s1-s0)*1.5);
+  const deckHeight=terrainHeight(pathX(1290),1290)+.31;
   for(let i=0;i<=n;i++) {
     const s=THREE.MathUtils.lerp(s0,s1,i/n),x=pathX(s);
     const w=width*(.85+.18*Math.sin(s*.04));
-    for(const side of [-1,1]) {const xx=x+side*w;const deckHeight=terrainHeight(pathX(1290),1290)+.31;const deckInfluence=1-smooth(7,16,Math.abs(s-1290));const base=surfaceHeight(xx,s)+.09;const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),deckInfluence);p.push(xx,y,-s);uv.push((side+1)/2,s*.06);}
+
+    // The ribbon is only two vertices wide and flat between them, while the
+    // ground beneath spans several 6-unit triangles. Sampling just the two
+    // edges lets any bulge in between push up through the middle of the path,
+    // which is what produced the dark patches on it. Clear the highest ground
+    // under the whole width instead — which also stops the path tilting
+    // sideways from one edge sitting higher than the other.
+    let ground=-Infinity;
+    for(let k=-2;k<=2;k++) ground=Math.max(ground,surfaceHeight(x+k*w*.5,s));
+    const base=ground+.22;
+
+    const deckInfluence=1-smooth(7,16,Math.abs(s-1290));
+    const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),deckInfluence);
+    for(const side of [-1,1]){p.push(x+side*w,y,-s);uv.push((side+1)/2,s*.06);}
     if(i<n){const j=i*2;indices.push(j,j+1,j+2,j+1,j+3,j+2);}
   }
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;

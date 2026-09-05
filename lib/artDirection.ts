@@ -29,6 +29,32 @@ export const PALETTE = {
   coralDeep: '#c8442f',
 };
 
+/**
+ * The sky travels with you: morning in the valley, dusk by the time the route
+ * reaches the sea. One journey, one continuous time of day.
+ */
+export const SKY = {
+  dayTop:      '#cfd4d2',
+  dayMid:      '#e6dccd',
+  dayHorizon:  '#f4e6d4',
+  duskTop:     '#2f4a63',
+  duskMid:     '#b0837f',
+  duskHorizon: '#f6c79a',
+  /** What distance fades into, at each end of the journey. */
+  dayHaze:     '#f2e3d1',
+  duskHaze:    '#e5ab86',
+};
+
+/** Water, sampled from ocean.png. The bright band near the horizon is the
+ *  thing that makes the reference read as sea rather than as a grey plane. */
+export const SEA = {
+  near:    '#123c4e',
+  mid:     '#296577',
+  bright:  '#62afb6',
+  glint:   '#acefea',
+  horizon: '#2a566f',
+};
+
 const col = (hex: string) => new THREE.Color(hex);
 
 /** Shared bits: flat facets from derivatives, stepped light, stepped distance. */
@@ -145,6 +171,21 @@ export type BandedOptions = {
   side?: THREE.Side;
 };
 
+const atmosphere: THREE.ShaderMaterial[] = [];
+const dayHaze = col(SKY.dayHaze);
+const duskHaze = col(SKY.duskHaze);
+
+/**
+ * Shift what distance fades into, so the far hills warm up with the sky rather
+ * than staying morning-cream against a dusk horizon.
+ */
+export function setAtmosphere(progress: number) {
+  const t = Math.min(1, Math.max(0, (progress - 0.52) / 0.42));
+  for (const m of atmosphere) {
+    (m.uniforms.uHaze.value as THREE.Color).copy(dayHaze).lerp(duskHaze, t);
+  }
+}
+
 export function bandedMaterial(o: BandedOptions = {}) {
   const m = new THREE.ShaderMaterial({
     vertexShader: VERTEX,
@@ -155,7 +196,7 @@ export function bandedMaterial(o: BandedOptions = {}) {
       uLit: { value: col(o.lit ?? PALETTE.cream) },
       uShade: { value: col(o.shade ?? PALETTE.deep) },
       uFill: { value: col(o.fill ?? PALETTE.navy) },
-      uHaze: { value: col(PALETTE.paper) },
+      uHaze: { value: col(SKY.dayHaze) },
       uLightDir: { value: new THREE.Vector3(-0.78, 0.30, -0.55).normalize() },
       uLightMix: { value: o.lightMix ?? 1 },
       uLightSteps: { value: o.lightSteps ?? 3 },
@@ -166,6 +207,7 @@ export function bandedMaterial(o: BandedOptions = {}) {
       uGrain: { value: o.grain ?? 0.07 },
     },
   });
+  atmosphere.push(m);
   // Geometry without a colour attribute still needs a tint to work from.
   if (!o.vertexColors) {
     m.defines = { ...m.defines, USE_COLOR: '' };

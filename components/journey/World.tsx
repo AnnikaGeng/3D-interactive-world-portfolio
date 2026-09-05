@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash, makeTerrain, makeTrail, pathX, smooth, terrainHeight } from '@/lib/terrain';
-import { PALETTE, bandedMaterial, flatMaterial } from '@/lib/artDirection';
+import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
 // one unlit material per colour rather than carrying their own.
@@ -96,36 +96,50 @@ function Rocks() {
  return <instancedMesh ref={ref} args={[geometry,undefined,350]} material={rockMaterial}/>;
 }
 function Water() {
- const ref=useRef<THREE.Mesh>(null);
- const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{uTime:{value:0},uSky:{value:new THREE.Color(PALETTE.haze)},uDeep:{value:new THREE.Color(PALETTE.navy)},uGlint:{value:new THREE.Color(PALETTE.cream)}},vertexShader:`
+ const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{
+   uTime:{value:0},
+   uNear:{value:new THREE.Color(SEA.near)},
+   uMid:{value:new THREE.Color(SEA.mid)},
+   uBright:{value:new THREE.Color(SEA.bright)},
+   uGlint:{value:new THREE.Color(SEA.glint)},
+   uHorizon:{value:new THREE.Color(SEA.horizon)},
+ },vertexShader:`
   uniform float uTime;varying vec3 vWorld;varying float vWave;
   void main(){vec3 p=position;float w=sin(p.x*.13+uTime*.6)*.12+sin(p.y*.08+uTime*.45)*.15+sin(p.x*.041+p.y*.064+uTime*.35)*.23;p.z+=w;vWave=w;vec4 world=modelMatrix*vec4(p,1.);vWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}
  `,fragmentShader:`
-  uniform float uTime;uniform vec3 uSky;uniform vec3 uDeep;uniform vec3 uGlint;varying vec3 vWorld;varying float vWave;
+  uniform float uTime;uniform vec3 uNear,uMid,uBright,uGlint,uHorizon;
+  varying vec3 vWorld;varying float vWave;
   float bands(float x,float steps){return floor(x*steps)/steps + smoothstep(.82,1.,fract(x*steps))/steps;}
   void main(){
-   vec3 view=normalize(cameraPosition-vWorld);
-   // The artwork draws water as a few flat tonal bands with hard glints on top,
-   // so the fresnel and the haze are quantised rather than smooth.
-   float fresnel=bands(pow(1.-max(view.y,0.),3.),5.);
-   float ripples=sin(vWorld.z*2.5+sin(vWorld.x*.55+uTime*.4)*2.+uTime*.7);
-   float sparkle=step(.72,pow(max(0.,ripples),20.)*.4+.5)*.55;
-   float light=exp(-pow((vWorld.x-15.)/max(12.,abs(vWorld.z+1200.)*.4),2.));
-   vec3 c=mix(uDeep,uSky,fresnel*.5);
-   c=mix(c,uGlint,sparkle*light);
-   c+=vWave*.04;
-   float fog=bands(1.-exp(-distance(cameraPosition,vWorld)*.0018),6.);
-   c=mix(c,uSky,fog*.55);
+   // Banded by distance out to sea, which draws as horizontal strips the way
+   // the reference does. Banding fresnel instead — the obvious choice — varies
+   // far too slowly across a plane this wide and prints contour rings.
+   float d=clamp((-vWorld.z-1180.)/2150.,0.,1.);
+   float ripple=(sin(vWorld.x*.02+vWorld.z*.05+uTime*.25)*.5+.5)*.06;
+
+   vec3 c=mix(uNear,uMid,bands(smoothstep(0.,.6,d)+ripple,5.));
+   // The lit band short of the horizon is what makes it read as sea.
+   c=mix(c,uBright,bands(smoothstep(.52,.9,d),3.)*.8);
+   c=mix(c,uHorizon,smoothstep(.93,1.,d));
+
+   // Glints sit in the middle distance and fade before the horizon. Close to
+   // the horizon the water compresses to almost nothing on screen, so anything
+   // with detail shimmers there; the clean bright band is what should carry it.
+   float streak=sin(vWorld.z*.22+sin(vWorld.x*.016+uTime*.3)*3.-uTime*.55);
+   float where=smoothstep(.12,.45,d)*(1.-smoothstep(.68,.9,d));
+   c=mix(c,uGlint,smoothstep(.88,1.,streak)*where*.5);
+   c+=vWave*.03;
+
    gl_FragColor=vec4(c,1.);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
+   #include <tonemapping_fragment>
+   #include <colorspace_fragment>
   }
  `}),[]);
  useFrame((_,delta)=>{material.uniforms.uTime.value+=Math.min(delta,.05);});
  useEffect(()=>()=>material.dispose(),[material]);
  return <>
-  <mesh ref={ref} rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[-19,1.3,-82]} scale={[1,1.7,1]}><circleGeometry args={[12,80]}/><meshBasicMaterial color={PALETTE.slate}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[-19,1.3,-82]} scale={[1,1.7,1]}><circleGeometry args={[12,80]}/><meshBasicMaterial color={SEA.mid}/></mesh>
  </>;
 }
 function Limb({a,b,r=.1,color=PALETTE.ink}:{a:[number,number,number],b:[number,number,number],r?:number,color?:string}){

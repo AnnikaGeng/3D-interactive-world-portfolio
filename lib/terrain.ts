@@ -11,6 +11,22 @@ export function noise(x: number, y: number) {
 export function fbm(x:number,y:number) { return noise(x,y)*.58 + noise(x*2.1+4,y*2.1)*.27 + noise(x*4.3,y*4.3+7)*.1 + noise(x*8.7,y*8.7)*.05; }
 export function pathX(s:number) { return Math.sin(s*.013)*13 + Math.sin(s*.027+.6)*7; }
 export function elevation(s:number) { return 155*smooth(330,730,s) - 155*smooth(885,1280,s); }
+/** The sea plane's height, and the stretch of the route it covers. */
+export const SEA_LEVEL = -0.3;
+export const SEA_FROM = 1040;
+/** True where ground is under water — nothing should be planted there. */
+export function underwater(x:number,s:number) {
+  if (lakeMask(x,s) > .02) return true;
+  return s > SEA_FROM && terrainHeight(x,s) < SEA_LEVEL + 1.4;
+}
+
+/** A lake in the valley floor, placed where the reference painting has one. */
+export const LAKE = {x:-30, s:220, rx:26, rz:46, surface:-3};
+/** 1 inside the basin, falling to 0 at its shore. */
+export function lakeMask(x:number,s:number) {
+  return 1 - smooth(.62,1,Math.hypot((x-LAKE.x)/LAKE.rx,(s-LAKE.s)/LAKE.rz));
+}
+
 export function terrainHeight(x:number,s:number) {
   const center=pathX(s),d=Math.abs(x-center);
   const canyon=1-smooth(350,730,s);
@@ -34,7 +50,11 @@ export function terrainHeight(x:number,s:number) {
   const inland=elevation(s)+shoulder*coastal*(1-.55*summit)-summitDrop+outerPeaks+coastLeft+nearRipple + canyon*Math.exp(-Math.pow((x+95)/45,2))*18+distantPeaks;
   const peninsula=Math.exp(-Math.pow((x+40)/65,2))*(1-smooth(1280,1430,s));
   const headland=-13+(38+(fbm(x*.065,s*.06)-.5)*13)*peninsula;
-  return THREE.MathUtils.lerp(inland,headland,smooth(1170,1320,s));
+  const ground=THREE.MathUtils.lerp(inland,headland,smooth(1170,1320,s));
+  // Dig the basin out rather than adding a plane on top, so the shoreline is
+  // wherever the ground actually meets the water.
+  const basin=lakeMask(x,s);
+  return basin>0 ? THREE.MathUtils.lerp(ground,Math.min(ground,elevation(s)-9),basin) : ground;
 }
 
 export function makeTerrain(s0:number,s1:number) {
@@ -65,9 +85,13 @@ export function makeTerrain(s0:number,s1:number) {
     const snowLine=clamp(.55 + slopeX*.4 - Math.abs(slopeZ)*.14 + (fbm(x*.07,s*.06)-.5)*.6);
     const nearBank=smooth(3,24,x-pathX(s))*(1-smooth(28,62,x-pathX(s)))*(1-smooth(270,450,s));
 
-    let v = clamp((h-elevation(s))/150)*.5
-          + snowRegion*smooth(.25,.8,snowLine)*.52
-          + nearBank*.30;
+    // Height above the valley floor is what drives value: ridge crests catch
+    // the light and the floor sits in mid tone. Brightening the ground beside
+    // the path instead — which is what this did before — inverts the whole
+    // picture and gives you a bright valley under grey peaks.
+    let v = clamp((h-elevation(s))/165)*.86
+          + snowRegion*smooth(.25,.8,snowLine)*.30
+          - nearBank*.10;
     // Dither the thresholds so the band edges follow the rock rather than
     // cutting clean contour lines across it.
     // Flat ground sits at one value, so without a slow drift across it the
@@ -77,12 +101,14 @@ export function makeTerrain(s0:number,s1:number) {
     v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
     const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
 
-    const coralBand=smooth(1,30,x-pathX(s))*(1-smooth(34,125,x-pathX(s)));
-    const lowGround=1-smooth(20,135,h-elevation(s));
+    // On the sunlit flank and partway up it, with the lit crest above — in the
+    // reference the blush runs along the slope, not across the valley floor.
+    const coralBand=smooth(6,42,x-pathX(s))*(1-smooth(62,205,x-pathX(s)));
+    const lowGround=smooth(2,34,h-elevation(s))*(1-smooth(78,168,h-elevation(s)));
     const early=1-smooth(340,660,s);                 // it belongs to the valley
     // Only a light dither: the reference's coral is a clean shape with a ragged
     // edge, not a mottled field.
-    c.lerp(coral,clamp(coralBand*lowGround*early+(fbm(x*.016,s*.014)-.5)*.11)*.95);
+    c.lerp(coral,clamp(coralBand*lowGround*early*1.5+(fbm(x*.016,s*.014)-.5)*.11)*.95);
 
     colors.push(c.r,c.g,c.b);
   }

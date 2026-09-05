@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { hash, makeTerrain, makeTrail, pathX, smooth, terrainHeight } from '@/lib/terrain';
+import { LAKE, hash, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
 import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -68,6 +68,7 @@ function Vegetation() {
   return {x,s,scale};
  }).filter(t=>{
   if(Math.abs(t.x-pathX(t.s))<8) return false;
+  if(underwater(t.x,t.s)) return false;          // nothing grows in the sea
   // Thin them out over the sunlit coral bank. In the reference the trees ring
   // that slope rather than covering it, which is what lets it read as a shape.
   const bank=smooth(1,30,t.x-pathX(t.s))*(1-smooth(34,125,t.x-pathX(t.s)));
@@ -91,8 +92,10 @@ function Rocks() {
  const ref=useRef<THREE.InstancedMesh>(null);
  const rockMaterial=useMemo(()=>bandedMaterial({lightSteps:2,hazeSteps:7,hazeNear:420,hazeFar:1850}),[]);
  const geometry=useMemo(()=>{const g=new THREE.DodecahedronGeometry(1,1);const p=g.attributes.position;for(let i=0;i<p.count;i++){const v=new THREE.Vector3().fromBufferAttribute(p,i);v.multiplyScalar(.85+hash(Math.round(v.x*30),Math.round(v.y*30+v.z*19))*.3);p.setXYZ(i,v.x,v.y,v.z);}g.computeVertexNormals();return g;},[]);
- useEffect(()=>{if(!ref.current)return;const o=new THREE.Object3D();for(let i=0;i<350;i++){
+ useEffect(()=>{if(!ref.current)return;const o=new THREE.Object3D();let n=0;for(let i=0;i<350;i++){
   const s=hash(i,18)*1700-200;const x=pathX(s)+(hash(i,20)>.5?1:-1)*(22+hash(i,22)*95);const size=.8+Math.pow(hash(i,31),3)*6;
+  if(underwater(x,s)){o.scale.setScalar(0);o.updateMatrix();ref.current.setMatrixAt(i,o.matrix);continue;}
+  n++;
   o.position.set(x,terrainHeight(x,s)+size*.15,-s);o.scale.set(size*1.3,size*.8,size);o.rotation.set(hash(i,7)*.6,hash(i,9)*6,hash(i,11)*.8);o.updateMatrix();ref.current.setMatrixAt(i,o.matrix);ref.current.setColorAt(i,new THREE.Color(PALETTE.deep).lerp(new THREE.Color(PALETTE.slate),hash(i,12)*.75));
  }ref.current.instanceMatrix.needsUpdate=true;if(ref.current.instanceColor)ref.current.instanceColor.needsUpdate=true;
   ref.current.computeBoundingSphere();   // same culling trap as the trees
@@ -147,7 +150,9 @@ function Water() {
  useEffect(()=>()=>material.dispose(),[material]);
  return <>
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[-19,1.3,-82]} scale={[1,1.7,1]}><circleGeometry args={[12,80]}/><meshBasicMaterial color={SEA.mid}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[LAKE.x,LAKE.surface,-LAKE.s]} scale={[LAKE.rx*.94,LAKE.rz*.94,1]}>
+   <circleGeometry args={[1,72]}/><meshBasicMaterial color="#63788c"/>
+  </mesh>
  </>;
 }
 function Limb({a,b,r=.1,color=PALETTE.ink}:{a:[number,number,number],b:[number,number,number],r?:number,color?:string}){

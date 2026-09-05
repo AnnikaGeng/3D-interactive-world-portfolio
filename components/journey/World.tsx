@@ -28,7 +28,7 @@ function Terrain() {
    vertexColors:true, lit:PALETTE.cream, shade:PALETTE.deep,
    lightSteps:3,          // three flat steps of light, the way the art prints it
    hazeSteps:7,           // distance in stacked layers, not a gradient
-   hazeNear:420, hazeFar:1850, grain:.075,
+   hazeNear:300, hazeFar:1650, grain:.075,
  }),[]);
  useEffect(()=>()=>{geometries.forEach(g=>g.dispose());trail.dispose();rockMaterial.dispose();},[geometries,trail,rockMaterial]);
  return <>
@@ -55,7 +55,7 @@ function treeGeometry() {
 }
 function Vegetation() {
  const mesh=useRef<THREE.InstancedMesh>(null);const geometry=useMemo(treeGeometry,[]);
- const treeMaterial=useMemo(()=>bandedMaterial({lightMix:.18,hazeSteps:7,hazeNear:420,hazeFar:1850,side:THREE.DoubleSide}),[]);
+ const treeMaterial=useMemo(()=>bandedMaterial({lightMix:.18,hazeSteps:7,hazeNear:300,hazeFar:1650,side:THREE.DoubleSide}),[]);
  // Candidates are spread over the whole route, not just the valley, and the
  // treeline does the editing: below it everything stands, above it nothing
  // does, and in between the odds fall off. Most candidates are discarded.
@@ -74,7 +74,7 @@ function Vegetation() {
   // on it — scattering trees across it muddies the picture and eats the type.
   const above=terrainHeight(t.x,t.s)-elevation(t.s);
   const onlyInValley=1-smooth(420,760,t.s);
-  const keep=Math.min(1,smooth(4,36,above)+(1-onlyInValley));
+  const keep=Math.min(1,smooth(12,58,above)*.8+(1-onlyInValley));
   if(hash(t.x*3.1,t.s*2.7) > keep) return false;
   return hash(t.s,t.x) > smooth(48,104,terrainHeight(t.x,t.s));
  }),[]);
@@ -93,7 +93,7 @@ function Vegetation() {
 }
 function Rocks() {
  const ref=useRef<THREE.InstancedMesh>(null);
- const rockMaterial=useMemo(()=>bandedMaterial({lightSteps:2,hazeSteps:7,hazeNear:420,hazeFar:1850}),[]);
+ const rockMaterial=useMemo(()=>bandedMaterial({lightSteps:2,hazeSteps:7,hazeNear:300,hazeFar:1650}),[]);
  const geometry=useMemo(()=>{const g=new THREE.DodecahedronGeometry(1,1);const p=g.attributes.position;for(let i=0;i<p.count;i++){const v=new THREE.Vector3().fromBufferAttribute(p,i);v.multiplyScalar(.85+hash(Math.round(v.x*30),Math.round(v.y*30+v.z*19))*.3);p.setXYZ(i,v.x,v.y,v.z);}g.computeVertexNormals();return g;},[]);
  useEffect(()=>{if(!ref.current)return;const o=new THREE.Object3D();let n=0;for(let i=0;i<350;i++){
   const s=hash(i,18)*1700-200;const x=pathX(s)+(hash(i,20)>.5?1:-1)*(22+hash(i,22)*95);const size=.8+Math.pow(hash(i,31),3)*6;

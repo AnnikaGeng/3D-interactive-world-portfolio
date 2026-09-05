@@ -223,15 +223,19 @@ html, body {
 .chapter-nav button:hover,.chapter-nav button:focus-visible {opacity:1;}
 .chapter-nav button:hover span,.chapter-nav button:focus-visible span {opacity:1;}
 .chapter-nav button:hover small,.chapter-nav button:focus-visible small {opacity:0;}
-/* The scene is pale now, and cream type on a near-white valley floor is
-   unreadable. A soft pool behind the words rather than a bar across the frame:
-   it has to give the type a ground without putting the greyness back. */
-.journey-copy::before {
-  content:'';position:absolute;inset:-14vh -18vw;z-index:-1;pointer-events:none;
-  background:radial-gradient(58% 52% at 50% 46%,rgba(9,26,38,.46),rgba(9,26,38,.20) 55%,transparent 78%);
-}
-.journey-copy {position:absolute;top:23%;left:16%;right:12%;pointer-events:none;text-align:center;isolation:isolate;text-shadow:0 2px 26px rgba(6,39,53,.45);transition:opacity .45s;animation:chapter-enter 1.2s both;}
+.journey-copy {position:absolute;top:23%;left:16%;right:12%;pointer-events:none;text-align:center;text-shadow:0 2px 22px rgba(6,39,53,.4);transition:opacity .45s;animation:chapter-enter 1.2s both;}
 .journey-eyebrow {font-size:11px;letter-spacing:.2em;line-height:1.5;text-transform:uppercase;}
+/* An outline rather than a panel behind the words: it holds the type over any
+   background without laying grey across the sky. Painted under the fill, so the
+   stroke thickens the letter outward and leaves Fraunces' hairlines intact —
+   a centred stroke would eat them. */
+.journey-copy h1,.journey-line,.journey-eyebrow {
+  paint-order:stroke fill;
+  -webkit-text-stroke:2.5px rgba(10,26,38,.22);
+}
+.chapter-0 .journey-line,.chapter-0 .journey-eyebrow {
+  -webkit-text-stroke:2px rgba(247,238,225,.5);
+}
 .journey-copy h1 {font-family:Fraunces,Georgia,'Times New Roman',serif;font-size:clamp(55px,7.8vw,122px);font-weight:300;letter-spacing:-.045em;line-height:.98;margin:30px 0 25px;}
 .journey-copy h1 span {display:block;}
 .journey-line {font-size:14px;letter-spacing:.16em;opacity:.9;margin-top:28px;}

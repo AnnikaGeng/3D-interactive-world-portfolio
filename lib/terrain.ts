@@ -117,15 +117,11 @@ export function makeTerrain(s0:number,s1:number) {
   // as generic. Snapping to the nearest one gives the large single-colour
   // regions the illustrations are built from.
   const ramp=['#0a1a26','#14314a','#2e4b5f','#6e8496','#d7c1a9','#ecdfc9'].map(h=>new THREE.Color(h));
-  // The single loudest thing in the reference illustrations is a large coral
-  // mass on the sunlit side of the valley — roughly a quarter of the frame, not
-  // just a coral trail. Without it the whole picture sits in greys and greige,
-  // and no amount of contrast makes it feel like the artwork.
-  // A soft blush, not a saturated coral. In the reference the slope is pale
-  // dusty pink and the *trail* is the one fully saturated thing in the frame;
-  // painting the hillside the same red as the path leaves it shouting with
-  // nothing to say.
-  const coral=new THREE.Color('#e0b0a1');
+  // The valley floor in the reference is near-white sand. Leaving it in the
+  // dark end of the ramp is what makes the whole picture read as grey: the
+  // shading and the haze then lift it only as far as a mid tone, and nothing in
+  // frame is properly light.
+  const sand=new THREE.Color('#f0e5d5');
   for(let i=0;i<p.count;i++) {
     const x=p.getX(i),s=-p.getZ(i),h=terrainHeight(x,s); p.setY(i,h);
     const slopeX=(terrainHeight(x+1,s)-terrainHeight(x-1,s))*.5;
@@ -149,15 +145,6 @@ export function makeTerrain(s0:number,s1:number) {
     // makes the bands break into coherent patches instead.
     v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
     const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
-
-    // On the sunlit flank and partway up it, with the lit crest above — in the
-    // reference the blush runs along the slope, not across the valley floor.
-    const coralBand=smooth(6,42,x-pathX(s))*(1-smooth(62,205,x-pathX(s)));
-    const lowGround=smooth(2,34,h-elevation(s))*(1-smooth(78,168,h-elevation(s)));
-    const early=1-smooth(340,660,s);                 // it belongs to the valley
-    // Only a light dither: the reference's coral is a clean shape with a ragged
-    // edge, not a mottled field.
-    c.lerp(coral,clamp(coralBand*lowGround*early*1.5+(fbm(x*.016,s*.014)-.5)*.11)*.95);
 
     colors.push(c.r,c.g,c.b);
   }

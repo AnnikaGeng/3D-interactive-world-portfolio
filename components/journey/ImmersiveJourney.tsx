@@ -65,7 +65,7 @@ function Sky({state}:{state:React.RefObject<JourneyState>}){
  });
  return <mesh scale={6000}><sphereGeometry args={[1,48,24]}/><shaderMaterial side={THREE.BackSide} depthWrite={false} uniforms={uniforms.current}
   vertexShader={'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'}
-  fragmentShader={'uniform vec3 top;uniform vec3 mid;uniform vec3 horizon;varying vec3 vDirection;float grain(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}void main(){float h=normalize(vDirection).y;vec3 c=mix(horizon,mid,smoothstep(-.06,.26,h));c=mix(c,top,smoothstep(.16,.92,h));c*=.985+grain(gl_FragCoord.xy)*.03;gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
+  fragmentShader={'uniform vec3 top;uniform vec3 mid;uniform vec3 horizon;varying vec3 vDirection;float grain(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}void main(){float h=normalize(vDirection).y;vec3 c=mix(horizon,mid,smoothstep(-.07,.10,h));c=mix(c,top,smoothstep(.05,.42,h));c*=.985+grain(gl_FragCoord.xy)*.03;gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
 }
 
 class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{

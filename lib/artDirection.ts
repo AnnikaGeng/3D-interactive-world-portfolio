@@ -93,7 +93,9 @@ const COMMON = /* glsl */ `
     // upward-facing surface into the top band, which is most of a landscape,
     // and the whole frame washes out to the lit colour. Widening it lets which
     // way a slope faces decide its value, the way it does in the artwork.
-    float lambert = smoothstep(-0.32, 0.62, dot(n, normalize(uLightDir)));
+    // Narrowed to match: ground facing the sky clears the top of the range,
+    // while a slope turned even slightly away still drops out of it.
+    float lambert = smoothstep(-0.30, 0.46, dot(n, normalize(uLightDir)));
 
     // A committed ink should get brighter when lit, not turn beige. Washing
     // everything toward cream is what drains a saturated slope: in the artwork
@@ -102,7 +104,7 @@ const COMMON = /* glsl */ `
     float committed = smoothstep(0.04, 0.26, sat);
     vec3 litTarget = mix(uLit, min(vTint * 1.55, vec3(1.0)), committed);
     vec3 lit = mix(vTint, litTarget, 0.42);
-    vec3 dark = mix(vTint, uShade, mix(0.5, 0.34, committed));
+    vec3 dark = mix(vTint, uShade, mix(0.66, 0.4, committed));
 
     // Skylight. Without it every surface turned away from the sun collapses to
     // one flat ink and a whole mountainside reads as a dead silhouette. In the
@@ -202,7 +204,11 @@ export function bandedMaterial(o: BandedOptions = {}) {
       uShade: { value: col(o.shade ?? PALETTE.deep) },
       uFill: { value: col(o.fill ?? PALETTE.navy) },
       uHaze: { value: col(SKY.dayHaze) },
-      uLightDir: { value: new THREE.Vector3(-0.78, 0.30, -0.55).normalize() },
+      // High enough that flat ground reaches the top band. At a low sun the valley
+      // floor never got there, so a third of its colour stayed shadow — which
+      // drags a near-white base to grey faster than it does a dark one, and the
+      // pale floor kept coming back looking like slate.
+      uLightDir: { value: new THREE.Vector3(-0.72, 0.48, -0.50).normalize() },
       uLightMix: { value: o.lightMix ?? 1 },
       uLightSteps: { value: o.lightSteps ?? 3 },
       uFillSteps: { value: o.fillSteps ?? 3 },

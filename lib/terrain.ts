@@ -121,7 +121,7 @@ export function makeTerrain(s0:number,s1:number) {
   // dark end of the ramp is what makes the whole picture read as grey: the
   // shading and the haze then lift it only as far as a mid tone, and nothing in
   // frame is properly light.
-  const sand=new THREE.Color('#f0e5d5');
+  const sand=new THREE.Color('#f5ead8');
   for(let i=0;i<p.count;i++) {
     const x=p.getX(i),s=-p.getZ(i),h=terrainHeight(x,s); p.setY(i,h);
     const slopeX=(terrainHeight(x+1,s)-terrainHeight(x-1,s))*.5;
@@ -145,6 +145,12 @@ export function makeTerrain(s0:number,s1:number) {
     // makes the bands break into coherent patches instead.
     v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
     const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
+
+    // Lay the pale floor over the ramp. Generous on height: what reads as "the
+    // valley floor" in frame is mostly gentle rising ground, so a tight cut
+    // leaves only a strip beside the trail pale and everything around it rock.
+    const floor=(1-smooth(3,62,h-elevation(s)))*(1-smooth(360,640,s));
+    c.lerp(sand,clamp(floor+(fbm(x*.02,s*.017)-.5)*.12)*.97);
 
     colors.push(c.r,c.g,c.b);
   }

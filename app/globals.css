@@ -198,7 +198,10 @@ html, body {
 .is-dragging .journey-world {cursor:grabbing;}
 .journey-world canvas {touch-action:pan-y!important;}
 .journey-scroll-space {height:1150vh;pointer-events:none;}
-.journey-atmosphere {position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(10,31,40,.12),transparent 20%,transparent 60%,rgba(8,27,36,.38));}
+/* Tuned when the scene was darker overall. At its old strength this sat
+   directly on the valley floor and cooled the lightest thing in frame back to
+   grey, which is most of why the floor kept reading as slate. */
+.journey-atmosphere {position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(10,31,40,.05),transparent 18%,transparent 70%,rgba(8,27,36,.05));}
 .journey-grain {position:absolute;inset:0;pointer-events:none;opacity:.065;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");mix-blend-mode:soft-light;}
 .journey-shell button,.journey-shell a {-webkit-tap-highlight-color:transparent;}
 .journey-shell button {font:inherit;color:inherit;cursor:pointer;}
@@ -210,7 +213,7 @@ html, body {
 .journey-header-note {font-size:11px;letter-spacing:.24em;opacity:.8;}
 .journey-header button {font-size:13px;border:0;border-bottom:1px solid #fff7e957;padding:8px 0;background:none;}
 .journey-header button span {margin-left:16px;}
-.chapter-nav {position:absolute;left:50px;top:44%;display:flex;flex-direction:column;gap:24px;}
+.chapter-nav {text-shadow:0 1px 14px rgba(6,39,53,.5);position:absolute;left:50px;top:44%;display:flex;flex-direction:column;gap:24px;}
 .chapter-nav button {display:flex;align-items:center;gap:13px;position:relative;border:0;background:none;padding:8px 10px 8px 0;opacity:.45;text-align:left;min-height:36px;}
 .chapter-nav button i {width:7px;height:7px;border:1px solid currentColor;transform:rotate(45deg);transition:background .3s,transform .3s;}
 .chapter-nav button span {font-size:12px;letter-spacing:.14em;opacity:0;transition:opacity .25s;}
@@ -220,7 +223,14 @@ html, body {
 .chapter-nav button:hover,.chapter-nav button:focus-visible {opacity:1;}
 .chapter-nav button:hover span,.chapter-nav button:focus-visible span {opacity:1;}
 .chapter-nav button:hover small,.chapter-nav button:focus-visible small {opacity:0;}
-.journey-copy {position:absolute;top:23%;left:16%;right:12%;pointer-events:none;text-align:center;text-shadow:0 3px 30px #06273520;transition:opacity .45s;animation:chapter-enter 1.2s both;}
+/* The scene is pale now, and cream type on a near-white valley floor is
+   unreadable. A soft pool behind the words rather than a bar across the frame:
+   it has to give the type a ground without putting the greyness back. */
+.journey-copy::before {
+  content:'';position:absolute;inset:-14vh -18vw;z-index:-1;pointer-events:none;
+  background:radial-gradient(58% 52% at 50% 46%,rgba(9,26,38,.46),rgba(9,26,38,.20) 55%,transparent 78%);
+}
+.journey-copy {position:absolute;top:23%;left:16%;right:12%;pointer-events:none;text-align:center;isolation:isolate;text-shadow:0 2px 26px rgba(6,39,53,.45);transition:opacity .45s;animation:chapter-enter 1.2s both;}
 .journey-eyebrow {font-size:11px;letter-spacing:.2em;line-height:1.5;text-transform:uppercase;}
 .journey-copy h1 {font-family:Fraunces,Georgia,'Times New Roman',serif;font-size:clamp(55px,7.8vw,122px);font-weight:300;letter-spacing:-.045em;line-height:.98;margin:30px 0 25px;}
 .journey-copy h1 span {display:block;}
@@ -234,7 +244,7 @@ html, body {
 .hotspot-ring {display:grid;place-items:center;font-size:20px;width:40px;height:40px;border:1px solid #f6e1c49c;border-radius:50%;background:#16384633;backdrop-filter:blur(3px);transition:background .3s,transform .3s;}
 .hotspot-caption {font-size:12px;letter-spacing:.08em;text-shadow:0 2px 15px #082536;background:#17384955;padding:7px 10px;border-radius:2px;}
 .world-hotspot:hover .hotspot-ring {transform:scale(1.15);background:#f479586b;}
-.journey-footer {position:absolute;left:48px;right:48px;bottom:34px;display:flex;align-items:center;justify-content:space-between;}
+.journey-footer {text-shadow:0 1px 14px rgba(6,39,53,.5);position:absolute;left:48px;right:48px;bottom:34px;display:flex;align-items:center;justify-content:space-between;}
 .journey-location {display:flex;gap:18px;align-items:center;min-width:180px;}
 .journey-location>span {font-size:12px;align-self:start;opacity:.65;padding-top:5px;}
 .journey-location p {font-family:Georgia,serif;font-size:22px;margin:0;}
@@ -275,3 +285,13 @@ html, body {
 .chapter-3 .journey-header button {border-color:#183a4a55;}
 .chapter-3 .chapter-nav button[aria-current] i {background:#183a4a;}
 .hotspot-caption {transition:opacity .3s;}
+
+/* The valley is pale ground now, so its small type switches to ink — the same
+   thing chapter three already does over its light horizon. The headline keeps
+   its cream: it sits across the darker mountains and has the pool behind it.
+   So does the chapter list, which runs down the shaded left slope. */
+.chapter-0 .journey-header,.chapter-0 .journey-footer,
+.chapter-0 .journey-copy .journey-eyebrow,.chapter-0 .journey-line {
+  color:#173747;text-shadow:0 1px 10px rgba(244,233,216,.6);
+}
+.chapter-0 .journey-header button {border-bottom-color:#1737473d;}

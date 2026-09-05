@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { cameraAt, chapters, clamp, terrainHeight } from '@/lib/terrain';
+import { PALETTE } from '@/lib/artDirection';
 import World, { landmarkPosition } from './World';
 
 type JourneyState={target:number,current:number,yaw:number,pitch:number,dragging:boolean,reduced:boolean,focus:number|null};
@@ -42,10 +43,12 @@ function CameraJourney({state,onProgress,marker,onReady}:FrameProps){
  return null;
 }
 function Sky(){
- const material=useRef<THREE.ShaderMaterial>(null);
- const uniforms=useRef({top:{value:new THREE.Color('#7295a2')},bottom:{value:new THREE.Color('#f1d8b8')}});
- return <mesh scale={6000}><sphereGeometry args={[1,32,16]}/><shaderMaterial ref={material} side={THREE.BackSide} depthWrite={false} uniforms={uniforms.current} vertexShader={'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'} fragmentShader={'uniform vec3 top;uniform vec3 bottom;varying vec3 vDirection;void main(){float h=normalize(vDirection).y;vec3 c=mix(bottom,top,smoothstep(-.05,.8,h));float sun=pow(max(0.,dot(normalize(vDirection),normalize(vec3(-.5,.3,-1.)))),160.);gl_FragColor=vec4(c+vec3(.22,.15,.07)*sun,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
+ const uniforms=useRef({top:{value:new THREE.Color(PALETTE.paperCool)},bottom:{value:new THREE.Color(PALETTE.paper)}});
+ return <mesh scale={6000}><sphereGeometry args={[1,32,16]}/><shaderMaterial side={THREE.BackSide} depthWrite={false} uniforms={uniforms.current}
+  vertexShader={'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'}
+  fragmentShader={'uniform vec3 top;uniform vec3 bottom;varying vec3 vDirection;float grain(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}void main(){float h=normalize(vDirection).y;vec3 c=mix(bottom,top,smoothstep(-.1,.95,h));c*=.985+grain(gl_FragCoord.xy)*.03;gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
 }
+
 class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true};}
  render(){return this.state.failed?<div className="journey-fallback"><p>三维场景未能启动。</p><button onClick={()=>window.location.reload()}>重新载入</button><a href="/illustration">浏览原插画旅程</a></div>:this.props.children;}
@@ -96,9 +99,11 @@ export default function ImmersiveJourney(){
  return <>
   <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent 四章山海旅程">
    <div className="journey-world" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
-    <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}>
-     <color attach="background" args={['#dacbb5']}/><fogExp2 attach="fog" args={['#aebfc4',.0025]}/>
-     <hemisphereLight args={['#e7e8df','#102b3b',1.55]}/><directionalLight position={[-180,270,-80]} color="#ffe0b4" intensity={2.4}/>
+    <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}
+     // Flat printed colour: any tone mapping pulls the palette toward neutral.
+     onCreated={({gl})=>{gl.toneMapping=THREE.NoToneMapping;}}>
+     <color attach="background" args={[PALETTE.paper]}/><fogExp2 attach="fog" args={[PALETTE.haze,.0025]}/>
+     {/* Every material now shades itself in flat steps, so the scene needs no lights. */}
      <Sky/><World/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
     </Canvas></SceneBoundary>
    </div>

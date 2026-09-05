@@ -26,7 +26,10 @@ export function terrainHeight(x:number,s:number) {
   const summitDrop=smooth(18,145,d)*112*summit;
   const outerPeaks=smooth(145,300,d)*70*summit;
   const coastLeft=(1-smooth(-100,8,x))*(1-smooth(1280,1580,s))*32;
-  const nearRipple=(noise(x*.08,s*.065)-.5)*2.1;
+  // Tuned for the old 3-unit grid. At 6 units its wavelength is barely wider
+  // than a triangle, so it only tilts each face at random — which the stepped
+  // lighting then reads as a checkerboard across otherwise flat ground.
+  const nearRipple=(noise(x*.08,s*.065)-.5)*0.55;
   const distantPeaks=(Math.exp(-Math.pow((x+185)/85,2)-Math.pow((s-1060)/150,2))*125 + Math.exp(-Math.pow((x-205)/65,2)-Math.pow((s-1130)/120,2))*110)*(0.8+fbm(x*.035,s*.025)*.4);
   const inland=elevation(s)+shoulder*coastal*(1-.55*summit)-summitDrop+outerPeaks+coastLeft+nearRipple + canyon*Math.exp(-Math.pow((x+95)/45,2))*18+distantPeaks;
   const peninsula=Math.exp(-Math.pow((x+40)/65,2))*(1-smooth(1280,1430,s));
@@ -35,31 +38,45 @@ export function terrainHeight(x:number,s:number) {
 }
 
 export function makeTerrain(s0:number,s1:number) {
-  const nx=300,nz=110,width=900;
+  const nx=150,nz=55,width=900;
   const geometry=new THREE.PlaneGeometry(width,s1-s0,nx,nz);
   geometry.rotateX(-Math.PI/2); geometry.translate(0,0,-(s0+s1)/2);
   const p=geometry.attributes.position;
   const colors=[];
-  const navy=new THREE.Color('#244959'),slate=new THREE.Color('#5c7b87'),snow=new THREE.Color('#e9d6b9'),warm=new THREE.Color('#b8a58b');
+  // A poster palette, not a gradient. The reference art picks from a handful of
+  // flat inks; interpolating between them is what makes procedural terrain read
+  // as generic. Snapping to the nearest one gives the large single-colour
+  // regions the illustrations are built from.
+  const ramp=['#0b1c28','#14314a','#2e4b5f','#6e8496','#d7c1a9','#e9ddca'].map(h=>new THREE.Color(h));
   for(let i=0;i<p.count;i++) {
     const x=p.getX(i),s=-p.getZ(i),h=terrainHeight(x,s); p.setY(i,h);
     const slopeX=(terrainHeight(x+1,s)-terrainHeight(x-1,s))*.5;
     const slopeZ=(terrainHeight(x,s+1)-terrainHeight(x,s-1))*.5;
-    const c=navy.clone().lerp(slate,clamp((h-elevation(s))/180)*.5);
     const snowRegion=smooth(375,620,s)*(1-smooth(880,1160,s));
     const snowLine=clamp(.55 + slopeX*.4 - Math.abs(slopeZ)*.14 + (fbm(x*.07,s*.06)-.5)*.6);
-    c.lerp(snow,snowRegion*smooth(.25,.8,snowLine)*.82);
     const nearBank=smooth(3,24,x-pathX(s))*(1-smooth(28,62,x-pathX(s)))*(1-smooth(270,450,s));
-    c.lerp(warm,nearBank*.7);
-    c.multiplyScalar(.92+noise(x*.15,s*.15)*.13);colors.push(c.r,c.g,c.b);
+
+    let v = clamp((h-elevation(s))/150)*.5
+          + snowRegion*smooth(.25,.8,snowLine)*.52
+          + nearBank*.30;
+    // Dither the thresholds so the band edges follow the rock rather than
+    // cutting clean contour lines across it.
+    // Flat ground sits at one value, so without a slow drift across it the
+    // whole area lands on a band edge and neighbouring vertices split either
+    // side of it — which quilts. A large-scale term moves it off the edge and
+    // makes the bands break into coherent patches instead.
+    v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
+    const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
+    colors.push(c.r,c.g,c.b);
   }
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();return geometry;
 }
 // Match the actual triangulated terrain, so a thin path cannot intersect its grid.
 export function surfaceHeight(x:number,s:number) {
- const x0=Math.floor((x+450)/3)*3-450,s0=Math.floor((s+240)/2)*2-240;
- const u=(x-x0)/3,v=(s-s0)/2;
- const a=terrainHeight(x0,s0),b=terrainHeight(x0+3,s0),c=terrainHeight(x0,s0+2),d=terrainHeight(x0+3,s0+2);
+ // Must match the grid above, or the trail cuts through the terrain's triangles.
+ const x0=Math.floor((x+450)/6)*6-450,s0=Math.floor((s+240)/4)*4-240;
+ const u=(x-x0)/6,v=(s-s0)/4;
+ const a=terrainHeight(x0,s0),b=terrainHeight(x0+6,s0),c=terrainHeight(x0,s0+4),d=terrainHeight(x0+6,s0+4);
  return v>u?a+(d-c)*u+(c-a)*v:a+(b-a)*u+(d-b)*v;
 }
 export function makeTrail(s0=-140,s1=1315,width=2.3) {

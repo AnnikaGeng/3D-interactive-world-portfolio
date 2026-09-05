@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAKE, hash, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
+import { hash, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
 import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -103,6 +103,7 @@ function Rocks() {
  return <instancedMesh ref={ref} args={[geometry,undefined,350]} material={rockMaterial}/>;
 }
 function Water() {
+ const lake=useMemo(makeLakeSurface,[]);
  const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{
    uTime:{value:0},
    uNear:{value:new THREE.Color(SEA.near)},
@@ -147,12 +148,10 @@ function Water() {
   }
  `}),[]);
  useFrame((_,delta)=>{material.uniforms.uTime.value+=Math.min(delta,.05);});
- useEffect(()=>()=>material.dispose(),[material]);
+ useEffect(()=>()=>{material.dispose();lake.dispose();},[material,lake]);
  return <>
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[LAKE.x,LAKE.surface,-LAKE.s]} scale={[LAKE.rx*.94,LAKE.rz*.94,1]}>
-   <circleGeometry args={[1,72]}/><meshBasicMaterial color="#63788c"/>
-  </mesh>
+  <mesh geometry={lake}><meshBasicMaterial color="#63788c"/></mesh>
  </>;
 }
 function Limb({a,b,r=.1,color=PALETTE.ink}:{a:[number,number,number],b:[number,number,number],r?:number,color?:string}){

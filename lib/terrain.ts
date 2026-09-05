@@ -21,22 +21,57 @@ export function underwater(x:number,s:number) {
 }
 
 /** A lake in the valley floor, placed where the reference painting has one. */
-export const LAKE = {x:-30, s:220, rx:26, rz:46, surface:-3};
+export const LAKE = {x:64, s:140, rx:46, rz:62, surface:-3};
+/** Radius multiplier by bearing — a few harmonics, so the outline reads as a
+ *  lake rather than as an ellipse. */
+function lakeWobble(a:number) {
+  return 1 + Math.sin(a*2.3+1.1)*.15 + Math.sin(a*3.7-.4)*.10 + Math.sin(a*5.1+2.2)*.05;
+}
+
 /** 1 inside the basin, falling to 0 at its shore. */
 export function lakeMask(x:number,s:number) {
-  return 1 - smooth(.62,1,Math.hypot((x-LAKE.x)/LAKE.rx,(s-LAKE.s)/LAKE.rz));
+  const dx=(x-LAKE.x)/LAKE.rx, ds=(s-LAKE.s)/LAKE.rz;
+  const w=lakeWobble(Math.atan2(ds,dx));
+  return 1 - smooth(.62*w,w,Math.hypot(dx,ds));
+}
+
+/**
+ * The water surface, following the same irregular outline as the basin.
+ *
+ * Deliberately run out to the full shore radius rather than stopping at the
+ * waterline: past that the ground has risen back above the surface and hides
+ * the overhang, so the visible edge lands exactly where the terrain meets the
+ * water without having to solve for it.
+ */
+export function makeLakeSurface() {
+  const seg=120, position:number[]=[LAKE.x,LAKE.surface,-LAKE.s], index:number[]=[];
+  for(let i=0;i<seg;i++){
+    const a=i/seg*Math.PI*2, r=lakeWobble(a);
+    position.push(LAKE.x+Math.cos(a)*LAKE.rx*r, LAKE.surface, -(LAKE.s+Math.sin(a)*LAKE.rz*r));
+    index.push(0,1+i,1+((i+1)%seg));
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(position,3));
+  g.setIndex(index); g.computeVertexNormals(); return g;
 }
 
 export function terrainHeight(x:number,s:number) {
   const center=pathX(s),d=Math.abs(x-center);
   const canyon=1-smooth(350,730,s);
-  const corridor=16 + 65*(1-smooth(170,430,s)) + 10*smooth(680,780,s);
-  const rise=smooth(corridor*.35,corridor+95,d);
+  // A wider, gentler valley floor. The walls used to start climbing almost at
+  // the trail's edge, which reads as oppressive from a camera down in it and
+  // leaves no room for anything on the floor.
+  const corridor=22 + 88*(1-smooth(170,430,s)) + 10*smooth(680,780,s);
+  const rise=smooth(corridor*.62,corridor+120,d);
   const mountain=38 + 106*fbm(x*.011,s*.009) + 26*Math.sin(s*.009+x*.012);
   const ridge=1-Math.abs(noise(x*.03,s*.014)*2-1);
   const detail=(fbm(x*.055,s*.049)-.5)*16;
   const folds=Math.sin(x*.15+noise(s*.022,3)*4)*5 + (1-Math.abs(noise(x*.07,s*.031)*2-1))*9;
-  const shoulder=rise*(mountain+ridge*20+detail+folds);
+  // Lower the walls where the camera is down on the valley floor. Pushing them
+  // back is not enough on its own — from a low viewpoint a wall this tall still
+  // fills the frame and the shot reads as a corridor rather than a landscape.
+  const inValley=1-smooth(300,580,s);
+  const shoulder=rise*(mountain+ridge*20+detail+folds)*(1-.26*inValley);
   const coastal=1-smooth(1010,1320,s);
   const summit=smooth(550,755,s)*(1-smooth(900,1080,s));
   const summitDrop=smooth(18,145,d)*112*summit;

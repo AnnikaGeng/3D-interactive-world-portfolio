@@ -23,7 +23,7 @@ export const PALETTE = {
   rose:      '#b5938f',   // coral seen in shade
   slate:     '#6e8496',   // middle distance
   navy:      '#2e4b5f',
-  deep:      '#112a3b',
+  deep:      '#0a1a26',
   ink:       '#070f14',   // near-black foreground
   coral:     '#f7523c',   // the trail
   coralDeep: '#c8442f',
@@ -34,14 +34,14 @@ export const PALETTE = {
  * reaches the sea. One journey, one continuous time of day.
  */
 export const SKY = {
-  dayTop:      '#cfd4d2',
-  dayMid:      '#e6dccd',
-  dayHorizon:  '#f4e6d4',
+  dayTop:      '#d8d3c6',
+  dayMid:      '#eee1cf',
+  dayHorizon:  '#f7ead8',
   duskTop:     '#2f4a63',
   duskMid:     '#b0837f',
   duskHorizon: '#f6c79a',
   /** What distance fades into, at each end of the journey. */
-  dayHaze:     '#f2e3d1',
+  dayHaze:     '#f4e7d5',
   duskHaze:    '#e5ab86',
 };
 
@@ -96,8 +96,14 @@ const COMMON = /* glsl */ `
     // way a slope faces decide its value, the way it does in the artwork.
     float lambert = smoothstep(-0.32, 0.62, dot(n, normalize(uLightDir)));
 
-    vec3 lit = mix(vTint, uLit, 0.34);
-    vec3 dark = mix(vTint, uShade, 0.62);
+    // A committed ink should get brighter when lit, not turn beige. Washing
+    // everything toward cream is what drains a saturated slope: in the artwork
+    // a sunlit coral face becomes lighter coral, and only the greys go creamy.
+    float sat = max(vTint.r, max(vTint.g, vTint.b)) - min(vTint.r, min(vTint.g, vTint.b));
+    float committed = smoothstep(0.04, 0.26, sat);
+    vec3 litTarget = mix(uLit, min(vTint * 1.55, vec3(1.0)), committed);
+    vec3 lit = mix(vTint, litTarget, 0.42);
+    vec3 dark = mix(vTint, uShade, mix(0.5, 0.34, committed));
 
     // Skylight. Without it every surface turned away from the sun collapses to
     // one flat ink and a whole mountainside reads as a dead silhouette. In the

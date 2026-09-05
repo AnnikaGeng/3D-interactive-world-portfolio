@@ -47,7 +47,12 @@ export function makeTerrain(s0:number,s1:number) {
   // flat inks; interpolating between them is what makes procedural terrain read
   // as generic. Snapping to the nearest one gives the large single-colour
   // regions the illustrations are built from.
-  const ramp=['#0b1c28','#14314a','#2e4b5f','#6e8496','#d7c1a9','#e9ddca'].map(h=>new THREE.Color(h));
+  const ramp=['#0a1a26','#14314a','#2e4b5f','#6e8496','#d7c1a9','#ecdfc9'].map(h=>new THREE.Color(h));
+  // The single loudest thing in the reference illustrations is a large coral
+  // mass on the sunlit side of the valley — roughly a quarter of the frame, not
+  // just a coral trail. Without it the whole picture sits in greys and greige,
+  // and no amount of contrast makes it feel like the artwork.
+  const coral=new THREE.Color('#e0705a');
   for(let i=0;i<p.count;i++) {
     const x=p.getX(i),s=-p.getZ(i),h=terrainHeight(x,s); p.setY(i,h);
     const slopeX=(terrainHeight(x+1,s)-terrainHeight(x-1,s))*.5;
@@ -67,6 +72,14 @@ export function makeTerrain(s0:number,s1:number) {
     // makes the bands break into coherent patches instead.
     v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
     const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
+
+    const coralBand=smooth(1,30,x-pathX(s))*(1-smooth(34,125,x-pathX(s)));
+    const lowGround=1-smooth(20,135,h-elevation(s));
+    const early=1-smooth(340,660,s);                 // it belongs to the valley
+    // Only a light dither: the reference's coral is a clean shape with a ragged
+    // edge, not a mottled field.
+    c.lerp(coral,clamp(coralBand*lowGround*early+(fbm(x*.016,s*.014)-.5)*.11)*.95);
+
     colors.push(c.r,c.g,c.b);
   }
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.computeVertexNormals();return geometry;

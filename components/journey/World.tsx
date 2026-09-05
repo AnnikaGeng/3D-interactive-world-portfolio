@@ -1,10 +1,10 @@
 'use client';
 
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { hash, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
+import { LAKE, hash, lakeMask, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
 import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -109,23 +109,20 @@ function Water() {
    uWater:{value:new THREE.Color('#63788c')},
    uDeep:{value:new THREE.Color('#4a6076')},
    uGlint:{value:new THREE.Color('#d6dee0')},
+   uRipples:{value:Array.from({length:10},()=>new THREE.Vector3(0,0,-1))},
  },vertexShader:`
   varying vec3 vWorld;
   void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}
  `,fragmentShader:`
+  #define RIPPLE_SLOTS 10
+  #define RIPPLE_LIFE 2.6
+  #define RIPPLE_REACH 17.0
+
   uniform float uTime;uniform vec3 uWater,uDeep,uGlint;
+  uniform vec3 uRipples[RIPPLE_SLOTS];   // x, z, the moment it was struck
   varying vec3 vWorld;
   float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 
-  // One expanding ring, drawn rather than simulated: a thin bright circle that
-  // spreads from a point and fades as it goes. Hard-edged to match everything
-  // else in the scene — a soft normal-mapped ripple would be the only
-  // photographic thing in a flat-shaded picture.
-  float ripple(vec2 p,vec2 centre,float period,float phase,float reach){
-   float t=fract(uTime/period+phase);
-   float ring=smoothstep(1.9,0.45,abs(distance(p,centre)-t*reach));
-   return ring*(1.-t)*(1.-t);            // squared, so it dies out near the edge
-  }
 
   void main(){
    float far=smoothstep(20.,150.,-vWorld.z);
@@ -148,14 +145,19 @@ function Water() {
    float wave2=sin(vWorld.x*.17-hash(vec2(row2,11.))*6.28-uTime*.3);
    glint+=smoothstep(.88,1.,wave2)*step(.78,hash(vec2(row2,5.)))*.8;
 
-   // Rings from a few fixed points, each on its own period so they never
-   // arrive together and the surface never pulses on one beat.
+   // Rings raised wherever the pointer touched the water. The lake is
+   // otherwise still: the contrast is the point, since a surface already
+   // rippling on its own would swallow the response.
    vec2 p=vWorld.xz;
-   float rings=ripple(p,vec2(62.,-30.),7.4,0.,27.)
-             + ripple(p,vec2(88.,-62.),9.1,.37,23.)
-             + ripple(p,vec2(58.,-95.),11.3,.62,30.)
-             + ripple(p,vec2(95.,-40.),8.3,.18,25.);
-   glint+=rings*.9;
+   float rings=0.;
+   for(int i=0;i<RIPPLE_SLOTS;i++){
+    float age=uTime-uRipples[i].z;
+    float alive=step(0.,uRipples[i].z)*step(0.,age)*step(age,RIPPLE_LIFE);
+    float t=age/RIPPLE_LIFE;
+    float ring=smoothstep(1.7,.35,abs(distance(p,uRipples[i].xy)-t*RIPPLE_REACH));
+    rings+=ring*(1.-t)*(1.-t)*alive;
+   }
+   glint+=rings*1.15;
 
    // Fade toward the far shore, where the surface compresses to nothing on
    // screen and anything fine enough to see up close turns into noise.
@@ -208,11 +210,48 @@ function Water() {
    #include <colorspace_fragment>
   }
  `}),[]);
+ // Where the pointer meets the water, and the last few places it did.
+ const {gl,camera}=useThree();
+ const touch=useMemo(()=>({
+   raycaster:new THREE.Raycaster(),
+   plane:new THREE.Plane(new THREE.Vector3(0,1,0),-LAKE.surface),
+   ndc:new THREE.Vector2(), hit:new THREE.Vector3(),
+   last:new THREE.Vector3(1e4,0,1e4), slot:0, at:-1e3,
+ }),[]);
+
+ // A DOM listener rather than sampling state.pointer once per frame: it reacts
+ // to the movement itself, and it keeps working when the browser throttles the
+ // frame loop — a hidden tab, a background window, reduced motion.
+ useEffect(()=>{
+  const el=gl.domElement;
+  const onMove=(e:PointerEvent)=>{
+   const r=el.getBoundingClientRect();
+   touch.ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+   touch.raycaster.setFromCamera(touch.ndc,camera);
+   if(!touch.raycaster.ray.intersectPlane(touch.plane,touch.hit))return;
+   if(lakeMask(touch.hit.x,-touch.hit.z)<=0)return;         // only on the water
+
+   // Spaced in both time and distance: without the distance test a resting
+   // pointer drills rings into one spot, and without the time one a fast sweep
+   // lays down a solid stripe.
+   const now=lakeMaterial.uniforms.uTime.value as number;
+   if(now-touch.at<.1 || touch.hit.distanceTo(touch.last)<1.1)return;
+   touch.at=now; touch.last.copy(touch.hit);
+
+   const slots=lakeMaterial.uniforms.uRipples.value as THREE.Vector3[];
+   slots[touch.slot].set(touch.hit.x,touch.hit.z,now);
+   touch.slot=(touch.slot+1)%slots.length;                  // oldest is overwritten
+  };
+  window.addEventListener('pointermove',onMove,{passive:true});
+  return ()=>window.removeEventListener('pointermove',onMove);
+ },[gl,camera,touch,lakeMaterial]);
+
  useFrame((_,delta)=>{
   const step=Math.min(delta,.05);
   material.uniforms.uTime.value+=step;
   lakeMaterial.uniforms.uTime.value+=step;
  });
+
  useEffect(()=>()=>{material.dispose();lakeMaterial.dispose();lake.dispose();},[material,lakeMaterial,lake]);
  return <>
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>

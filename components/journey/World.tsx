@@ -104,6 +104,47 @@ function Rocks() {
 }
 function Water() {
  const lake=useMemo(makeLakeSurface,[]);
+ const lakeMaterial=useMemo(()=>new THREE.ShaderMaterial({uniforms:{
+   uTime:{value:0},
+   uWater:{value:new THREE.Color('#63788c')},
+   uDeep:{value:new THREE.Color('#4a6076')},
+   uGlint:{value:new THREE.Color('#d6dee0')},
+ },vertexShader:`
+  varying vec3 vWorld;
+  void main(){vec4 w=modelMatrix*vec4(position,1.);vWorld=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}
+ `,fragmentShader:`
+  uniform float uTime;uniform vec3 uWater,uDeep,uGlint;
+  varying vec3 vWorld;
+  float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+  void main(){
+   float far=smoothstep(20.,150.,-vWorld.z);
+   vec3 col=mix(uDeep,uWater,far*.8+.2);
+
+   // Cut the surface into rows of ripples, each with its own phase and drift,
+   // and light only some of them. Short bright dashes that blink in and out is
+   // what glitter looks like when it is drawn rather than rendered — a smooth
+   // specular highlight would be the one soft thing in a hard-edged picture.
+   // Long and thin: roughly 4 units across and under one deep. Square dashes
+   // read as floating debris; it is the elongation that says water.
+   float row=floor(-vWorld.z*1.25);
+   float speed=.45+hash(vec2(row,7.))*.6;
+   float wave=sin(vWorld.x*.32+hash(vec2(row,0.))*6.28+uTime*speed);
+   float glint=smoothstep(.76,1.,wave)*step(.62,hash(vec2(row,3.)));
+
+   // A sparser, slower pass at another scale, so the whole surface does not
+   // blink on one beat.
+   float row2=floor(-vWorld.z*.55+3.);
+   float wave2=sin(vWorld.x*.17-hash(vec2(row2,11.))*6.28-uTime*.3);
+   glint+=smoothstep(.88,1.,wave2)*step(.78,hash(vec2(row2,5.)))*.8;
+
+   // Fade toward the far shore, where the surface compresses to nothing on
+   // screen and anything fine enough to see up close turns into noise.
+   col=mix(col,uGlint,clamp(glint,0.,1.)*(1.-far*.5)*.42);
+   gl_FragColor=vec4(col,1.);
+   #include <tonemapping_fragment>
+   #include <colorspace_fragment>
+  }
+ `}),[]);
  const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{
    uTime:{value:0},
    uNear:{value:new THREE.Color(SEA.near)},
@@ -147,11 +188,15 @@ function Water() {
    #include <colorspace_fragment>
   }
  `}),[]);
- useFrame((_,delta)=>{material.uniforms.uTime.value+=Math.min(delta,.05);});
- useEffect(()=>()=>{material.dispose();lake.dispose();},[material,lake]);
+ useFrame((_,delta)=>{
+  const step=Math.min(delta,.05);
+  material.uniforms.uTime.value+=step;
+  lakeMaterial.uniforms.uTime.value+=step;
+ });
+ useEffect(()=>()=>{material.dispose();lakeMaterial.dispose();lake.dispose();},[material,lakeMaterial,lake]);
  return <>
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,-.3,-2150]} material={material}><planeGeometry args={[8000,2200,240,150]}/></mesh>
-  <mesh geometry={lake}><meshBasicMaterial color="#63788c"/></mesh>
+  <mesh geometry={lake} material={lakeMaterial}/>
  </>;
 }
 function Limb({a,b,r=.1,color=PALETTE.ink}:{a:[number,number,number],b:[number,number,number],r?:number,color?:string}){

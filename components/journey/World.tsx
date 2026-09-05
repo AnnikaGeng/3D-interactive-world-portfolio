@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { hash, makeTerrain, makeTrail, pathX, terrainHeight } from '@/lib/terrain';
+import { hash, makeTerrain, makeTrail, pathX, smooth, terrainHeight } from '@/lib/terrain';
 import { PALETTE, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -56,19 +56,29 @@ function treeGeometry() {
 function Vegetation() {
  const mesh=useRef<THREE.InstancedMesh>(null);const geometry=useMemo(treeGeometry,[]);
  const treeMaterial=useMemo(()=>bandedMaterial({lightMix:.18,hazeSteps:7,hazeNear:300,hazeFar:1700,side:THREE.DoubleSide}),[]);
- const trees=useMemo(()=>Array.from({length:660},(_,i)=>{
-  const s=hash(i,6)*630-200;
+ // Candidates are spread over the whole route, not just the valley, and the
+ // treeline does the editing: below it everything stands, above it nothing
+ // does, and in between the odds fall off. Most candidates are discarded.
+ const trees=useMemo(()=>Array.from({length:2600},(_,i)=>{
+  const s=hash(i,6)*1720-210;
   const cluster=Math.sin(s*.037)*18;
   const side=i%2===0?-1:1;
   const x=pathX(s)+side*(26+hash(i,8)*115)+cluster;
   const scale=.52+hash(i,9)*1.25;
   return {x,s,scale};
- }).filter(t=>Math.abs(t.x-pathX(t.s))>8 && terrainHeight(t.x,t.s)<72),[]);
+ }).filter(t=>{
+  if(Math.abs(t.x-pathX(t.s))<8) return false;
+  return hash(t.s,t.x) > smooth(48,104,terrainHeight(t.x,t.s));
+ }),[]);
  useEffect(()=>{
   if(!mesh.current)return;const m=new THREE.Object3D();
   trees.forEach((t,i)=>{m.position.set(t.x,terrainHeight(t.x,t.s)-.4,-t.s);m.rotation.y=hash(i,1)*Math.PI*2;m.scale.setScalar(t.scale);m.updateMatrix();mesh.current!.setMatrixAt(i,m.matrix);mesh.current!.setColorAt(i,new THREE.Color(PALETTE.ink).lerp(new THREE.Color(PALETTE.deep),hash(i,3)*.85));});
   mesh.current.instanceMatrix.needsUpdate=true;
   if(mesh.current.instanceColor)mesh.current.instanceColor.needsUpdate=true;
+  // Without this the bounds stay at whatever three computed on the first frame,
+  // before any of these matrices existed — a tiny sphere at the origin. The
+  // whole forest then gets frustum-culled the moment the camera leaves it.
+  mesh.current.computeBoundingSphere();
   return ()=>geometry.dispose();
  },[trees,geometry]);
  return <instancedMesh ref={mesh} args={[geometry,undefined,trees.length]} material={treeMaterial}/>;
@@ -78,9 +88,11 @@ function Rocks() {
  const rockMaterial=useMemo(()=>bandedMaterial({lightSteps:2,hazeSteps:7,hazeNear:300,hazeFar:1700}),[]);
  const geometry=useMemo(()=>{const g=new THREE.DodecahedronGeometry(1,1);const p=g.attributes.position;for(let i=0;i<p.count;i++){const v=new THREE.Vector3().fromBufferAttribute(p,i);v.multiplyScalar(.85+hash(Math.round(v.x*30),Math.round(v.y*30+v.z*19))*.3);p.setXYZ(i,v.x,v.y,v.z);}g.computeVertexNormals();return g;},[]);
  useEffect(()=>{if(!ref.current)return;const o=new THREE.Object3D();for(let i=0;i<350;i++){
-  const s=hash(i,18)*1420-140;const x=pathX(s)+(hash(i,20)>.5?1:-1)*(22+hash(i,22)*95);const size=.8+Math.pow(hash(i,31),3)*6;
+  const s=hash(i,18)*1700-200;const x=pathX(s)+(hash(i,20)>.5?1:-1)*(22+hash(i,22)*95);const size=.8+Math.pow(hash(i,31),3)*6;
   o.position.set(x,terrainHeight(x,s)+size*.15,-s);o.scale.set(size*1.3,size*.8,size);o.rotation.set(hash(i,7)*.6,hash(i,9)*6,hash(i,11)*.8);o.updateMatrix();ref.current.setMatrixAt(i,o.matrix);ref.current.setColorAt(i,new THREE.Color(PALETTE.deep).lerp(new THREE.Color(PALETTE.slate),hash(i,12)*.75));
- }ref.current.instanceMatrix.needsUpdate=true;if(ref.current.instanceColor)ref.current.instanceColor.needsUpdate=true;return ()=>geometry.dispose();},[geometry]);
+ }ref.current.instanceMatrix.needsUpdate=true;if(ref.current.instanceColor)ref.current.instanceColor.needsUpdate=true;
+  ref.current.computeBoundingSphere();   // same culling trap as the trees
+  return ()=>geometry.dispose();},[geometry]);
  return <instancedMesh ref={ref} args={[geometry,undefined,350]} material={rockMaterial}/>;
 }
 function Water() {

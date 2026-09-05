@@ -51,7 +51,7 @@ function Sky(){
 
 class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true};}
- render(){return this.state.failed?<div className="journey-fallback"><p>三维场景未能启动。</p><button onClick={()=>window.location.reload()}>重新载入</button><a href="/illustration">浏览原插画旅程</a></div>:this.props.children;}
+ render(){return this.state.failed?<div className="journey-fallback"><p>The 3D scene could not start.</p><button onClick={()=>window.location.reload()}>Reload</button><a href="/illustration">View the illustrated version</a></div>:this.props.children;}
 }
 export default function ImmersiveJourney(){
  const state=useRef<JourneyState>({target:0,current:0,yaw:0,pitch:0,dragging:false,reduced:false,focus:null});
@@ -97,7 +97,7 @@ export default function ImmersiveJourney(){
  const titlePhase=clamp((progress-chapter.at)/(.14));
  const opacity=focus===null?1-clamp((titlePhase-.45)/.55)*.83:0;
  return <>
-  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent 四章山海旅程">
+  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent — a journey in four chapters">
    <div className="journey-world" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
     <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}
      // Flat printed colour: any tone mapping pulls the palette toward neutral.
@@ -108,18 +108,18 @@ export default function ImmersiveJourney(){
     </Canvas></SceneBoundary>
    </div>
    <div className="journey-atmosphere" aria-hidden="true"/><div className="journey-grain" aria-hidden="true"/>
-   {!ready && <div className="journey-loading"><span>ASCENT</span><p>山海即将展开</p><i/></div>}
-   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Ascent 返回旅程起点">ascent</a><span className="journey-header-note">A JOURNEY THROUGH PERSPECTIVE</span><button onClick={()=>explore(active)}>探索此处 <span>↗</span></button></header>
-   <nav className="chapter-nav" aria-label="章节导航">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
+   {!ready && <div className="journey-loading"><span>ASCENT</span><p>Building the world</p><i/></div>}
+   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Ascent — back to the start">ascent</a><span className="journey-header-note">A JOURNEY THROUGH PERSPECTIVE</span><button onClick={()=>explore(active)}>Explore here <span>↗</span></button></header>
+   <nav className="chapter-nav" aria-label="Chapters">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
    <section className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p></section>
    <button className="world-hotspot" ref={marker} onClick={()=>explore(active)} aria-label={chapter.label}><span className="hotspot-ring">+</span><span className="hotspot-caption" style={{opacity:titlePhase>.8?1:0}}>{chapter.hotspot}</span></button>
-   {focus!==null && <aside className="exploration-note" role="dialog" aria-labelledby="note-title"><span className="journey-eyebrow">{chapters[focus].en} / FIELD NOTE</span><h2 id="note-title">{chapters[focus].hotspot}</h2><p>{chapters[focus].note}</p><button ref={closeButton} onClick={returnToPath}>返回旅程 <span>↙</span></button></aside>}
-   <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}<small>{chapter.name}</small></p></div>
-    <div className="journey-instruction">{focus!==null?'滚动继续旅程':looking?<button onClick={returnToPath}>回到前方视角 ↺</button>:<><span className="scroll-stroke"/>滚动前行 <span className="instruction-divider">/</span> 拖动环顾</>}</div>
-    {progress>.975?<button className="journey-next" onClick={()=>navigate(0)}>重新出发 <span>↺</span></button>:<button className="journey-next" onClick={()=>navigate(active<3?chapters[active+1].at:1)}>{active<3?'下一章':'走向海面'} <span>↓</span></button>}
+   {focus!==null && <aside className="exploration-note" role="dialog" aria-labelledby="note-title"><span className="journey-eyebrow">{chapters[focus].en} / FIELD NOTE</span><h2 id="note-title">{chapters[focus].hotspot}</h2><p>{chapters[focus].note}</p><button ref={closeButton} onClick={returnToPath}>Back to the path <span>↙</span></button></aside>}
+   <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}</p></div>
+    <div className="journey-instruction">{focus!==null?'Scroll to continue':looking?<button onClick={returnToPath}>Look forward again ↺</button>:<><span className="scroll-stroke"/>Scroll to travel <span className="instruction-divider">/</span> Drag to look around</>}</div>
+    {progress>.975?<button className="journey-next" onClick={()=>navigate(0)}>Start again <span>↺</span></button>:<button className="journey-next" onClick={()=>navigate(active<3?chapters[active+1].at:1)}>{active<3?'Next chapter':'To the sea'} <span>↓</span></button>}
    </footer>
-   <div className="journey-progress" role="progressbar" aria-label="旅程进度" aria-valuenow={Math.round(progress*100)} aria-valuemin={0} aria-valuemax={100}><span style={{transform:`scaleX(${progress})`}}/></div>
-   {motionReduced && <span className="reduced-note">已减少镜头缓动</span>}
+   <div className="journey-progress" role="progressbar" aria-label="Journey progress" aria-valuenow={Math.round(progress*100)} aria-valuemin={0} aria-valuemax={100}><span style={{transform:`scaleX(${progress})`}}/></div>
+   {motionReduced && <span className="reduced-note">Reduced motion</span>}
   </main>
   <div className="journey-scroll-space" aria-hidden="true"/>
  </>;

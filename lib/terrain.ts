@@ -90,10 +90,26 @@ export function makeTrail(s0=-140,s1=1315,width=2.3) {
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 export const chapters = [
- {id:'valley',name:'山谷',en:'The valley',kicker:'01 / THE BEGINNING',title:['Every journey','starts within.'],body:'循着微光，走入群山。',at:0,until:.27,hotspot:'林间来客',note:'在出发之前，停一下。山谷里最轻微的动静，也值得被看见。',label:'寻找林间的鹿'},
- {id:'climb',name:'攀登',en:'The climb',kicker:'02 / THE ASCENT',title:['A little further.','A little higher.'],body:'顺着蜿蜒的路，向上。',at:.31,until:.51,hotspot:'沿途的路标',note:'视野变窄，脚步变慢。珊瑚色的路标，串起岩壁之间下一段可以抵达的路。',label:'靠近攀登路标'},
- {id:'summit',name:'山顶',en:'The summit',kicker:'03 / A NEW PERSPECTIVE',title:['Room to breathe.'],body:'走过的路，在远处连成风景。',at:.57,until:.75,hotspot:'山顶观景处',note:'目光越过山脊，才看见另一侧的世界。这里没有终点，只有更宽的视野。',label:'眺望远处群山'},
- {id:'ocean',name:'海洋',en:'The open sea',kicker:'04 / BEYOND THE HORIZON',title:['And then,','the open sea.'],body:'山的尽头，故事仍在继续。',at:.86,until:1,hotspot:'通向海的门',note:'穿过石门，沿途的喧嚣留在身后。眼前是一片可以重新出发的海。',label:'穿过海边石门'},
+ {id:'valley',name:'Valley',en:'The valley',kicker:'01 / THE BEGINNING',
+  title:['Every journey','starts within.'],body:'Follow the light in, between the mountains.',
+  at:0,until:.27,hotspot:'A visitor in the trees',
+  note:'Before setting out, stop. The smallest movement in the valley is still worth noticing.',
+  label:'Find the deer among the trees'},
+ {id:'climb',name:'Climb',en:'The climb',kicker:'02 / THE ASCENT',
+  title:['A little further.','A little higher.'],body:'Upward, along the winding path.',
+  at:.31,until:.51,hotspot:'Markers along the way',
+  note:'The view narrows and the pace slows. Coral markers thread together the next stretch you can actually reach.',
+  label:'Approach the climbing markers'},
+ {id:'summit',name:'Summit',en:'The summit',kicker:'03 / A NEW PERSPECTIVE',
+  title:['Room to breathe.'],body:'The road behind you becomes the view.',
+  at:.57,until:.75,hotspot:'The lookout',
+  note:'Only past the ridge does the far side appear. There is no finish line here, only a wider view.',
+  label:'Look out across the range'},
+ {id:'ocean',name:'Open sea',en:'The open sea',kicker:'04 / BEYOND THE HORIZON',
+  title:['And then,','the open sea.'],body:'Where the mountains end, the story keeps going.',
+  at:.86,until:1,hotspot:'The door to the sea',
+  note:'Through the stone doorway the noise of the route stays behind. Ahead is somewhere to begin again.',
+  label:'Pass through the stone doorway'},
 ];
 export const cameraKnots = [
  {p:0,pos:[28,54,125],look:[-8,45,-170]},

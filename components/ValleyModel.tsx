@@ -71,9 +71,9 @@ export default function ValleyModel(){
     <hemisphereLight args={['#fff1db','#264352',2.1]}/><directionalLight position={[-12,24,10]} intensity={3} castShadow shadow-mapSize={[2048,2048]} shadow-camera-left={-25} shadow-camera-right={25} shadow-camera-top={25} shadow-camera-bottom={-25} shadow-bias={-.0005}/>
     <World wire={wire}/><Controls reset={reset} auto={auto}/>
    </Canvas>
-   <header className="model-header"><a href="/">ASCENT <span> / TERRAIN STUDY 01</span></a><a href="/illustration">原插画版本 ↗</a></header>
-   <section className="model-caption"><span>THE VALLEY · 山谷</span><h1>A path through<br/>the quiet.</h1><p>依照山谷参考图重建的三维地形</p></section>
-   <nav className="model-controls" aria-label="模型控制"><button onClick={()=>setReset(v=>v+1)}>重置视角</button><button aria-pressed={auto} onClick={()=>setAuto(v=>!v)}>自动旋转 {auto?'开':'关'}</button><button aria-pressed={wire} onClick={()=>setWire(v=>!v)}>线框 {wire?'开':'关'}</button></nav>
-   <footer className="model-footer">拖动旋转 · 滚轮缩放 · 右键平移 <span>THREE.JS / WEBGL</span></footer>
+   <header className="model-header"><a href="/">ASCENT <span> / TERRAIN STUDY 01</span></a><a href="/illustration">Illustrated version ↗</a></header>
+   <section className="model-caption"><span>THE VALLEY</span><h1>A path through<br/>the quiet.</h1><p>Terrain rebuilt from the valley reference</p></section>
+   <nav className="model-controls" aria-label="Model controls"><button onClick={()=>setReset(v=>v+1)}>Reset view</button><button aria-pressed={auto} onClick={()=>setAuto(v=>!v)}>Auto-rotate {auto?'on':'off'}</button><button aria-pressed={wire} onClick={()=>setWire(v=>!v)}>Wireframe {wire?'on':'off'}</button></nav>
+   <footer className="model-footer">Drag to orbit · Scroll to zoom · Right-drag to pan <span>THREE.JS / WEBGL</span></footer>
  </main>;
 }

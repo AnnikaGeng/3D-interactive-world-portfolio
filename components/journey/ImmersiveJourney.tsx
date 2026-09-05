@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { cameraAt, chapters, clamp, terrainHeight } from '@/lib/terrain';
+import { PALETTE, SKY, setAtmosphere } from '@/lib/artDirection';
 import World, { landmarkPosition } from './World';
 
 type JourneyState={target:number,current:number,yaw:number,pitch:number,dragging:boolean,reduced:boolean,focus:number|null};
@@ -30,6 +31,7 @@ function CameraJourney({state,onProgress,marker,onReady}:FrameProps){
   camera.quaternion.copy(v.base).multiply(v.offset);
   const fog=scene.fog as THREE.FogExp2;
   fog.density=THREE.MathUtils.lerp(.0025,.00165,clamp((s.current-.5)*2));
+  fog.color.set(SKY.dayHaze).lerp(new THREE.Color(SKY.duskHaze),clamp((s.current-.52)/.42));
   if(marker.current){
    v.point.copy(landmarkPosition(active));const distance=camera.position.distanceTo(v.point);v.point.project(camera);
    const visible=v.point.z<1 && v.point.z>-1 && Math.abs(v.point.x)<.88 && Math.abs(v.point.y)<.78 && distance<420 && s.focus===null;
@@ -41,14 +43,34 @@ function CameraJourney({state,onProgress,marker,onReady}:FrameProps){
  });
  return null;
 }
-function Sky(){
- const material=useRef<THREE.ShaderMaterial>(null);
- const uniforms=useRef({top:{value:new THREE.Color('#7295a2')},bottom:{value:new THREE.Color('#f1d8b8')}});
- return <mesh scale={6000}><sphereGeometry args={[1,32,16]}/><shaderMaterial ref={material} side={THREE.BackSide} depthWrite={false} uniforms={uniforms.current} vertexShader={'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'} fragmentShader={'uniform vec3 top;uniform vec3 bottom;varying vec3 vDirection;void main(){float h=normalize(vDirection).y;vec3 c=mix(bottom,top,smoothstep(-.05,.8,h));float sun=pow(max(0.,dot(normalize(vDirection),normalize(vec3(-.5,.3,-1.)))),160.);gl_FragColor=vec4(c+vec3(.22,.15,.07)*sun,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
+const skyColour = (hex: string) => new THREE.Color(hex);
+const DAY = { top: skyColour(SKY.dayTop), mid: skyColour(SKY.dayMid), horizon: skyColour(SKY.dayHorizon) };
+const DUSK = { top: skyColour(SKY.duskTop), mid: skyColour(SKY.duskMid), horizon: skyColour(SKY.duskHorizon) };
+
+/**
+ * Morning in the valley, dusk by the sea. Three stops rather than two: a
+ * two-stop ramp cannot hold the warm band just above the horizon that makes
+ * dusk read as dusk.
+ */
+function Sky({state}:{state:React.RefObject<JourneyState>}){
+ const uniforms=useRef({
+   top:{value:DAY.top.clone()}, mid:{value:DAY.mid.clone()}, horizon:{value:DAY.horizon.clone()},
+ });
+ useFrame(()=>{
+  const t=clamp((state.current.current-0.52)/0.42);
+  uniforms.current.top.value.copy(DAY.top).lerp(DUSK.top,t);
+  uniforms.current.mid.value.copy(DAY.mid).lerp(DUSK.mid,t);
+  uniforms.current.horizon.value.copy(DAY.horizon).lerp(DUSK.horizon,t);
+  setAtmosphere(state.current.current);
+ });
+ return <mesh scale={6000}><sphereGeometry args={[1,48,24]}/><shaderMaterial side={THREE.BackSide} depthWrite={false} uniforms={uniforms.current}
+  vertexShader={'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'}
+  fragmentShader={'uniform vec3 top;uniform vec3 mid;uniform vec3 horizon;varying vec3 vDirection;float grain(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}void main(){float h=normalize(vDirection).y;vec3 c=mix(horizon,mid,smoothstep(-.07,.10,h));c=mix(c,top,smoothstep(.05,.42,h));c*=.985+grain(gl_FragCoord.xy)*.03;gl_FragColor=vec4(c,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n}'} /></mesh>;
 }
+
 class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true};}
- render(){return this.state.failed?<div className="journey-fallback"><p>三维场景未能启动。</p><button onClick={()=>window.location.reload()}>重新载入</button><a href="/illustration">浏览原插画旅程</a></div>:this.props.children;}
+ render(){return this.state.failed?<div className="journey-fallback"><p>The 3D scene could not start.</p><button onClick={()=>window.location.reload()}>Reload</button><a href="/illustration">View the illustrated version</a></div>:this.props.children;}
 }
 export default function ImmersiveJourney(){
  const state=useRef<JourneyState>({target:0,current:0,yaw:0,pitch:0,dragging:false,reduced:false,focus:null});
@@ -72,7 +94,22 @@ export default function ImmersiveJourney(){
   const onScroll=()=>{
    state.current.target=clamp(window.scrollY/Math.max(1,document.documentElement.scrollHeight-window.innerHeight));
    if(state.current.focus!==null){state.current.focus=null;setFocus(null);}
-  };onScroll();window.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',onScroll);
+  };
+  // ?at=0..1 opens partway along the route. Deferred, because the router
+  // restores scroll after this effect runs and would undo it; and on a timer
+  // rather than a frame, since a background tab stops delivering frames.
+  const at=new URLSearchParams(window.location.search).get('at');
+  const deepLink=()=>{
+   const p=clamp(Number(at));
+   const max=document.documentElement.scrollHeight-window.innerHeight;
+   if(max>0)window.scrollTo({top:p*max,behavior:'instant'});
+   // Land there rather than flying there: the camera damps toward its target,
+   // and a deep link should not start with a several-second journey from zero.
+   state.current.target=p;state.current.current=p;
+  };
+  const links=at!==null&&Number.isFinite(Number(at))
+   ? [setTimeout(deepLink,0),setTimeout(deepLink,300)] : [];
+  onScroll();window.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',onScroll);
   const onKey=(e:KeyboardEvent)=>{
    if(e.key==='Escape'){returnToPath();return;}
    if((e.target as HTMLElement).closest('button,a,input'))return;
@@ -80,7 +117,7 @@ export default function ImmersiveJourney(){
     e.preventDefault();state.current.yaw+=(e.key==='ArrowRight'?-.13:.13);setLooking(true);
    }
   };window.addEventListener('keydown',onKey);
-  return ()=>{media.removeEventListener('change',motion);window.removeEventListener('scroll',onScroll);window.removeEventListener('resize',onScroll);window.removeEventListener('keydown',onKey);};
+  return ()=>{links.forEach(clearTimeout);media.removeEventListener('change',motion);window.removeEventListener('scroll',onScroll);window.removeEventListener('resize',onScroll);window.removeEventListener('keydown',onKey);};
  },[returnToPath]);
  const pointer=useRef({x:0,y:0,started:false,touch:false});
  const startDrag=(e:React.PointerEvent<HTMLDivElement>)=>{if(e.button!==0 || (e.target as HTMLElement).closest('button,a'))return;pointer.current={x:e.clientX,y:e.clientY,started:true,touch:e.pointerType==='touch'};if(e.pointerType!=='touch')e.currentTarget.setPointerCapture(e.pointerId);};
@@ -94,27 +131,29 @@ export default function ImmersiveJourney(){
  const titlePhase=clamp((progress-chapter.at)/(.14));
  const opacity=focus===null?1-clamp((titlePhase-.45)/.55)*.83:0;
  return <>
-  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent 四章山海旅程">
+  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent — a journey in four chapters">
    <div className="journey-world" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
-    <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}>
-     <color attach="background" args={['#dacbb5']}/><fogExp2 attach="fog" args={['#aebfc4',.0025]}/>
-     <hemisphereLight args={['#e7e8df','#102b3b',1.55]}/><directionalLight position={[-180,270,-80]} color="#ffe0b4" intensity={2.4}/>
-     <Sky/><World/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
+    <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}
+     // Flat printed colour: any tone mapping pulls the palette toward neutral.
+     onCreated={({gl})=>{gl.toneMapping=THREE.NoToneMapping;}}>
+     <color attach="background" args={[PALETTE.paper]}/><fogExp2 attach="fog" args={[PALETTE.haze,.0025]}/>
+     {/* Every material now shades itself in flat steps, so the scene needs no lights. */}
+     <Sky state={state}/><World/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
     </Canvas></SceneBoundary>
    </div>
    <div className="journey-atmosphere" aria-hidden="true"/><div className="journey-grain" aria-hidden="true"/>
-   {!ready && <div className="journey-loading"><span>ASCENT</span><p>山海即将展开</p><i/></div>}
-   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Ascent 返回旅程起点">ascent</a><span className="journey-header-note">A JOURNEY THROUGH PERSPECTIVE</span><button onClick={()=>explore(active)}>探索此处 <span>↗</span></button></header>
-   <nav className="chapter-nav" aria-label="章节导航">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
+   {!ready && <div className="journey-loading"><span>ASCENT</span><p>Building the world</p><i/></div>}
+   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Ascent — back to the start">ascent</a><span className="journey-header-note">A JOURNEY THROUGH PERSPECTIVE</span><button onClick={()=>explore(active)}>Explore here <span>↗</span></button></header>
+   <nav className="chapter-nav" aria-label="Chapters">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
    <section className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p></section>
    <button className="world-hotspot" ref={marker} onClick={()=>explore(active)} aria-label={chapter.label}><span className="hotspot-ring">+</span><span className="hotspot-caption" style={{opacity:titlePhase>.8?1:0}}>{chapter.hotspot}</span></button>
-   {focus!==null && <aside className="exploration-note" role="dialog" aria-labelledby="note-title"><span className="journey-eyebrow">{chapters[focus].en} / FIELD NOTE</span><h2 id="note-title">{chapters[focus].hotspot}</h2><p>{chapters[focus].note}</p><button ref={closeButton} onClick={returnToPath}>返回旅程 <span>↙</span></button></aside>}
-   <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}<small>{chapter.name}</small></p></div>
-    <div className="journey-instruction">{focus!==null?'滚动继续旅程':looking?<button onClick={returnToPath}>回到前方视角 ↺</button>:<><span className="scroll-stroke"/>滚动前行 <span className="instruction-divider">/</span> 拖动环顾</>}</div>
-    {progress>.975?<button className="journey-next" onClick={()=>navigate(0)}>重新出发 <span>↺</span></button>:<button className="journey-next" onClick={()=>navigate(active<3?chapters[active+1].at:1)}>{active<3?'下一章':'走向海面'} <span>↓</span></button>}
+   {focus!==null && <aside className="exploration-note" role="dialog" aria-labelledby="note-title"><span className="journey-eyebrow">{chapters[focus].en} / FIELD NOTE</span><h2 id="note-title">{chapters[focus].hotspot}</h2><p>{chapters[focus].note}</p><button ref={closeButton} onClick={returnToPath}>Back to the path <span>↙</span></button></aside>}
+   <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}</p></div>
+    <div className="journey-instruction">{focus!==null?'Scroll to continue':looking?<button onClick={returnToPath}>Look forward again ↺</button>:<><span className="scroll-stroke"/>Scroll to travel <span className="instruction-divider">/</span> Drag to look around</>}</div>
+    {progress>.975?<button className="journey-next" onClick={()=>navigate(0)}>Start again <span>↺</span></button>:<button className="journey-next" onClick={()=>navigate(active<3?chapters[active+1].at:1)}>{active<3?'Next chapter':'To the sea'} <span>↓</span></button>}
    </footer>
-   <div className="journey-progress" role="progressbar" aria-label="旅程进度" aria-valuenow={Math.round(progress*100)} aria-valuemin={0} aria-valuemax={100}><span style={{transform:`scaleX(${progress})`}}/></div>
-   {motionReduced && <span className="reduced-note">已减少镜头缓动</span>}
+   <div className="journey-progress" role="progressbar" aria-label="Journey progress" aria-valuenow={Math.round(progress*100)} aria-valuemin={0} aria-valuemax={100}><span style={{transform:`scaleX(${progress})`}}/></div>
+   {motionReduced && <span className="reduced-note">Reduced motion</span>}
   </main>
   <div className="journey-scroll-space" aria-hidden="true"/>
  </>;

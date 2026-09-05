@@ -21,11 +21,11 @@ export function underwater(x:number,s:number) {
 }
 
 /** A lake in the valley floor, placed where the reference painting has one. */
-export const LAKE = {x:74, s:85, rx:46, rz:62, surface:-3};
+export const LAKE = {x:72, s:55, rx:42, rz:72, surface:-3};
 /** Radius multiplier by bearing — a few harmonics, so the outline reads as a
  *  lake rather than as an ellipse. */
 function lakeWobble(a:number) {
-  return 1 + Math.sin(a*2.3+1.1)*.15 + Math.sin(a*3.7-.4)*.10 + Math.sin(a*5.1+2.2)*.05;
+  return 1 + Math.sin(a*2.3+1.1)*.09 + Math.sin(a*3.7-.4)*.055 + Math.sin(a*5.1+2.2)*.03;
 }
 
 /** 1 inside the basin, falling to 0 at its shore. */
@@ -46,7 +46,10 @@ export function lakeMask(x:number,s:number) {
 export function makeLakeSurface() {
   const seg=120, position:number[]=[LAKE.x,LAKE.surface,-LAKE.s], index:number[]=[];
   for(let i=0;i<seg;i++){
-    const a=i/seg*Math.PI*2, r=lakeWobble(a);
+    // Past the shore radius on purpose: out there the ground has climbed back
+    // above the surface and hides the overhang, so the visible edge is always
+    // cut by the terrain rather than by where this polygon happens to stop.
+    const a=i/seg*Math.PI*2, r=lakeWobble(a)*1.12;
     position.push(LAKE.x+Math.cos(a)*LAKE.rx*r, LAKE.surface, -(LAKE.s+Math.sin(a)*LAKE.rz*r));
     index.push(0,1+i,1+((i+1)%seg));
   }

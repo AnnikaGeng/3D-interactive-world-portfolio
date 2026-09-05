@@ -21,7 +21,7 @@ export function underwater(x:number,s:number) {
 }
 
 /** A lake in the valley floor, placed where the reference painting has one. */
-export const LAKE = {x:64, s:140, rx:46, rz:62, surface:-3};
+export const LAKE = {x:74, s:85, rx:46, rz:62, surface:-3};
 /** Radius multiplier by bearing — a few harmonics, so the outline reads as a
  *  lake rather than as an ellipse. */
 function lakeWobble(a:number) {

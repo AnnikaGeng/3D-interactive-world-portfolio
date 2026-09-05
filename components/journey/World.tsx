@@ -124,14 +124,18 @@ function Water() {
    vec3 c=mix(uNear,uMid,bands(smoothstep(0.,.6,d)+ripple,5.));
    // The lit band short of the horizon is what makes it read as sea.
    c=mix(c,uBright,bands(smoothstep(.52,.9,d),3.)*.8);
-   c=mix(c,uHorizon,smoothstep(.93,1.,d));
+   // Open water is at its lightest where it meets the sky, not darkest — the
+   // previous ramp put a dark strip along the horizon against a pale sky.
+   c=mix(c,uHorizon,smoothstep(.82,1.,d));
 
    // Glints sit in the middle distance and fade before the horizon. Close to
    // the horizon the water compresses to almost nothing on screen, so anything
    // with detail shimmers there; the clean bright band is what should carry it.
-   float streak=sin(vWorld.z*.22+sin(vWorld.x*.016+uTime*.3)*3.-uTime*.55);
+   // Low frequency: at a grazing angle the far water compresses to almost
+   // nothing on screen, and anything finer prints as corduroy.
+   float streak=sin(vWorld.z*.075+sin(vWorld.x*.012+uTime*.3)*2.5-uTime*.4);
    float where=smoothstep(.12,.45,d)*(1.-smoothstep(.68,.9,d));
-   c=mix(c,uGlint,smoothstep(.88,1.,streak)*where*.5);
+   c=mix(c,uGlint,smoothstep(.86,1.,streak)*where*.32);
    c+=vWave*.03;
 
    gl_FragColor=vec4(c,1.);

@@ -52,7 +52,11 @@ export function makeTerrain(s0:number,s1:number) {
   // mass on the sunlit side of the valley — roughly a quarter of the frame, not
   // just a coral trail. Without it the whole picture sits in greys and greige,
   // and no amount of contrast makes it feel like the artwork.
-  const coral=new THREE.Color('#e0705a');
+  // A soft blush, not a saturated coral. In the reference the slope is pale
+  // dusty pink and the *trail* is the one fully saturated thing in the frame;
+  // painting the hillside the same red as the path leaves it shouting with
+  // nothing to say.
+  const coral=new THREE.Color('#e0b0a1');
   for(let i=0;i<p.count;i++) {
     const x=p.getX(i),s=-p.getZ(i),h=terrainHeight(x,s); p.setY(i,h);
     const slopeX=(terrainHeight(x+1,s)-terrainHeight(x-1,s))*.5;

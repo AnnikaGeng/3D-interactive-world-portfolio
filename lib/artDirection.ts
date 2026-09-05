@@ -48,13 +48,12 @@ export const SKY = {
 /** Water, sampled from ocean.png. The bright band near the horizon is the
  *  thing that makes the reference read as sea rather than as a grey plane. */
 export const SEA = {
-  near:    '#123c4e',
-  mid:     '#296577',
-  bright:  '#62afb6',
-  glint:   '#acefea',
-  horizon: '#2a566f',
+  near:    '#3c7d8a',
+  mid:     '#5fa3aa',
+  bright:  '#9ed3d3',
+  glint:   '#e2f4f1',
+  horizon: '#b8dfdd',
 };
-
 const col = (hex: string) => new THREE.Color(hex);
 
 /** Shared bits: flat facets from derivatives, stepped light, stepped distance. */

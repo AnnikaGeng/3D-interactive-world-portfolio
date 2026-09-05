@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { LAKE, hash, lakeMask, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
+import { LAKE, hash, lakeMask, lakeShore, makeLakeSurface, makeTerrain, makeTrail, pathX, smooth, terrainHeight, underwater } from '@/lib/terrain';
 import { PALETTE, SEA, bandedMaterial, flatMaterial } from '@/lib/artDirection';
 
 // Figures and props are near-silhouettes in the reference art, so they share
@@ -14,7 +14,7 @@ const flat = (tint: string, lightMix = 0) =>
   flats.get(tint + lightMix) ?? (() => { const m = flatMaterial(tint, { lightMix }); flats.set(tint + lightMix, m); return m; })();
 
 export const landmarks = [
-  { x:pathX(110)+7, s:110, lift:2 },
+  { x:LAKE.x-LAKE.rx*.85, s:LAKE.s-14, lift:3 },   // the lake shore, where the deer walks
   { x:pathX(535)+4, s:535, lift:7 },
   { x:pathX(795)-8, s:795, lift:4 },
   { x:pathX(1290), s:1290, lift:12 },
@@ -262,18 +262,99 @@ function Limb({a,b,r=.1,color=PALETTE.ink}:{a:[number,number,number],b:[number,n
  const transform=useMemo(()=>{const av=new THREE.Vector3(...a),bv=new THREE.Vector3(...b),dir=bv.clone().sub(av);return {position:av.add(bv).multiplyScalar(.5),quaternion:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize()),length:dir.length()};},[a,b]);
  return <mesh position={transform.position} quaternion={transform.quaternion} material={flat(color)}><cylinderGeometry args={[r*.7,r,transform.length,6]}/></mesh>;
 }
-function Deer(){
- const loc=landmarks[0],head=useRef<THREE.Group>(null);
- useFrame(({clock})=>{if(head.current)head.current.rotation.y=Math.sin(clock.elapsedTime*.5)*.25;});
- return <group position={[loc.x,terrainHeight(loc.x,loc.s),-loc.s]} rotation={[0,-.6,0]} scale={1.3}>
-  <mesh position={[0,1.22,0]} scale={[.42,.55,.9]} material={flat(PALETTE.rose,.35)}><icosahedronGeometry args={[1,1]}/></mesh>
-  {[-1,1].flatMap(x=>[-1,1].map(z=><Limb key={`${x}${z}`} a={[x*.25,1.2,z*.52]} b={[x*.27,0,z*.65]} r={.075} color={PALETTE.ink}/>))}
-  <group ref={head} position={[0,1.55,-.65]}><Limb a={[0,0,0]} b={[0,.65,-.2]} r={.2} color={PALETTE.rose}/>
-   <mesh position={[0,.65,-.36]} scale={[.2,.2,.4]} material={flat(PALETTE.rose,.35)}><icosahedronGeometry args={[1,1]}/></mesh>
-   {[-1,1].map(s=><group key={s}><Limb a={[s*.1,.8,-.22]} b={[s*.22,1.45,-.16]} r={.038} color={PALETTE.ink}/><Limb a={[s*.17,1.16,-.19]} b={[s*.45,1.4,-.28]} r={.025} color={PALETTE.ink}/></group>)}
+/** One leg: thigh and shank as nested groups, so both can swing. */
+function Leg({at,phase,legs}:{at:[number,number,number],phase:number,legs:React.RefObject<Gait[]>}) {
+ const thigh=useRef<THREE.Group>(null), shank=useRef<THREE.Group>(null);
+ useEffect(()=>{
+  const g={thigh:thigh.current!,shank:shank.current!,phase};
+  legs.current.push(g);
+  return ()=>{const i=legs.current.indexOf(g); if(i>=0)legs.current.splice(i,1);};
+ },[legs,phase]);
+ return <group ref={thigh} position={at}>
+  <Limb a={[0,0,0]} b={[0,-.52,0]} r={.062} color={PALETTE.ink}/>
+  <group ref={shank} position={[0,-.52,0]}>
+   <Limb a={[0,0,0]} b={[0,-.5,.07]} r={.045} color={PALETTE.ink}/>
+   <mesh position={[0,-.53,.09]} scale={[.055,.05,.075]} material={flat(PALETTE.ink)}>
+    <icosahedronGeometry args={[1,0]}/>
+   </mesh>
   </group>
  </group>;
 }
+type Gait={thigh:THREE.Group,shank:THREE.Group,phase:number};
+
+/**
+ * A deer walking the shore.
+ *
+ * The old one was a body blob with four straight pins and a head that swivelled
+ * on the spot. This has a chest and a rump rather than one lump, a neck that
+ * rises to a head with a muzzle and ears, and legs that bend at the knee.
+ */
+function Deer(){
+ const group=useRef<THREE.Group>(null);
+ const body=useRef<THREE.Group>(null);
+ const neck=useRef<THREE.Group>(null);
+ const legs=useRef<Gait[]>([]);
+ const path=useMemo(()=>({at:new THREE.Vector3(),ahead:new THREE.Vector3()}),[]);
+
+ useFrame(({clock})=>{
+  if(!group.current)return;
+  const t=clock.elapsedTime;
+  const a=t*.036;                                  // roughly three minutes a lap
+
+  lakeShore(a,path.at); lakeShore(a+.02,path.ahead);
+  group.current.position.copy(path.at);
+  // The model faces -z, so the heading is measured against that.
+  group.current.rotation.y=Math.atan2(-(path.ahead.x-path.at.x),-(path.ahead.z-path.at.z));
+
+  const stride=t*4.4;
+  for(const leg of legs.current){
+   leg.thigh.rotation.x=Math.sin(stride+leg.phase)*.42;
+   // The knee only folds one way, and only on the swing.
+   leg.shank.rotation.x=Math.max(0,Math.sin(stride+leg.phase-1.1))*.65;
+  }
+  // Body rises twice per stride, at the top of each pair of steps.
+  if(body.current) body.current.position.y=1.05+Math.abs(Math.sin(stride))*.035;
+  if(neck.current) neck.current.rotation.x=-.12+Math.sin(stride*.5)*.05;
+ });
+
+ return <group ref={group} scale={1.25}>
+  <group ref={body} position={[0,1.05,0]}>
+   {/* chest and rump, rather than one lump */}
+   <mesh position={[0,.02,-.34]} scale={[.30,.33,.42]} material={flat(PALETTE.rose,.4)}>
+    <icosahedronGeometry args={[1,1]}/></mesh>
+   <mesh position={[0,0,.34]} scale={[.31,.34,.46]} material={flat(PALETTE.rose,.4)}>
+    <icosahedronGeometry args={[1,1]}/></mesh>
+   <mesh position={[0,.01,0]} scale={[.28,.30,.42]} material={flat(PALETTE.rose,.4)}>
+    <icosahedronGeometry args={[1,0]}/></mesh>
+   <Limb a={[0,.12,.44]} b={[0,.3,.66]} r={.05} color={PALETTE.ink}/>
+
+   <group ref={neck} position={[0,.16,-.5]}>
+    <Limb a={[0,0,0]} b={[0,.52,-.24]} r={.105} color={PALETTE.rose}/>
+    <group position={[0,.54,-.26]}>
+     <mesh scale={[.115,.115,.20]} material={flat(PALETTE.rose,.4)}>
+      <icosahedronGeometry args={[1,1]}/></mesh>
+     <mesh position={[0,-.03,-.2]} scale={[.075,.07,.11]} material={flat(PALETTE.ink)}>
+      <icosahedronGeometry args={[1,0]}/></mesh>
+     {[-1,1].map(side=><mesh key={side} position={[side*.09,.09,.02]} rotation={[0,0,side*.5]}
+        scale={[.035,.09,.06]} material={flat(PALETTE.ink)}>
+       <icosahedronGeometry args={[1,0]}/></mesh>)}
+     {[-1,1].map(side=><group key={side}>
+       <Limb a={[side*.06,.09,.02]} b={[side*.15,.42,-.02]} r={.022} color={PALETTE.ink}/>
+       <Limb a={[side*.11,.26,0]} b={[side*.28,.4,-.12]} r={.016} color={PALETTE.ink}/>
+       <Limb a={[side*.14,.38,-.02]} b={[side*.2,.56,.06]} r={.014} color={PALETTE.ink}/>
+     </group>)}
+    </group>
+   </group>
+  </group>
+
+  {/* diagonal gait: each front leg swings with the opposite hind one */}
+  <Leg at={[-.19,1.06,-.34]} phase={0} legs={legs}/>
+  <Leg at={[ .19,1.06,-.34]} phase={Math.PI} legs={legs}/>
+  <Leg at={[-.2,1.04,.36]} phase={Math.PI} legs={legs}/>
+  <Leg at={[ .2,1.04,.36]} phase={0} legs={legs}/>
+ </group>;
+}
+
 function Flags(){
  const geometry=useMemo(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,2,-.6,0,0,-1.2,0],3));g.computeVertexNormals();return g;},[]);
  useEffect(()=>()=>geometry.dispose(),[geometry]);

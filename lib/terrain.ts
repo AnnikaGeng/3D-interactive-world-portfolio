@@ -36,6 +36,17 @@ export function lakeMask(x:number,s:number) {
 }
 
 /**
+ * A point on the ring the deer walks, just outside the shore, and the ground
+ * height there. Same outline as the lake so the walk follows its shape rather
+ * than tracing a circle beside it.
+ */
+export function lakeShore(a:number, out:THREE.Vector3, spread=1.34) {
+  const r=lakeWobble(a)*spread;
+  const x=LAKE.x+Math.cos(a)*LAKE.rx*r, s=LAKE.s+Math.sin(a)*LAKE.rz*r;
+  return out.set(x, terrainHeight(x,s), -s);
+}
+
+/**
  * The water surface, following the same irregular outline as the basin.
  *
  * Deliberately run out to the full shore radius rather than stopping at the
@@ -187,9 +198,9 @@ export function makeTrail(s0=-140,s1=1315,width=2.3) {
 export const chapters = [
  {id:'valley',name:'Valley',en:'The valley',kicker:'01 / THE BEGINNING',
   title:['Every journey','starts within.'],body:'Follow the light in, between the mountains.',
-  at:0,until:.27,hotspot:'A visitor in the trees',
+  at:0,until:.27,hotspot:'A visitor at the water',
   note:'Before setting out, stop. The smallest movement in the valley is still worth noticing.',
-  label:'Find the deer among the trees'},
+  label:'Find the deer by the lake'},
  {id:'climb',name:'Climb',en:'The climb',kicker:'02 / THE ASCENT',
   title:['A little further.','A little higher.'],body:'Upward, along the winding path.',
   at:.31,until:.51,hotspot:'Markers along the way',

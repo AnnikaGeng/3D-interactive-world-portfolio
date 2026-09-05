@@ -1,0 +1,9 @@
+{
+  "scenes": [
+    { "name": "valley", "file": "valley.png", "weight": 1.15, "water": true,
+      "deer": [735, 1465, 835, 1560] },
+    { "name": "climb",  "file": "Climb.png",  "weight": 1.0,  "water": false },
+    { "name": "summit", "file": "summit.png", "weight": 1.0,  "water": false },
+    { "name": "ocean",  "file": "ocean.png",  "weight": 1.0,  "water": true }
+  ]
+}

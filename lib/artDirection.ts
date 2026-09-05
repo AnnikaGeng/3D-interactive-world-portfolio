@@ -103,8 +103,18 @@ const COMMON = /* glsl */ `
     float sat = max(vTint.r, max(vTint.g, vTint.b)) - min(vTint.r, min(vTint.g, vTint.b));
     float committed = smoothstep(0.04, 0.26, sat);
     vec3 litTarget = mix(uLit, min(vTint * 1.55, vec3(1.0)), committed);
-    vec3 lit = mix(vTint, litTarget, 0.42);
-    vec3 dark = mix(vTint, uShade, mix(0.66, 0.4, committed));
+    // Light brightens a surface; it does not repaint it. A fixed lift toward
+    // the light colour turns dark rock pale the moment the sun touches it, and
+    // since most of a landscape is gentle enough to count as lit, that is what
+    // collapses the whole frame into the light half. Pale ground takes the full
+    // lift and goes near-white; dark rock takes a fraction and stays dark.
+    float tone = dot(vTint, vec3(0.299, 0.587, 0.114));
+    vec3 lit = mix(vTint, litTarget, mix(0.16, 0.5, tone));
+        // Deep. Over a third of the reference sits below a quarter brightness and a
+    // fifth of it is near-black, and that is what stops it reading as grey —
+    // not brightness. Lifting everything instead just moves the flatness to the
+    // light end, which is what happened here.
+    vec3 dark = mix(vTint, uShade, mix(0.88, 0.62, committed));
 
     // Skylight. Without it every surface turned away from the sun collapses to
     // one flat ink and a whole mountainside reads as a dead silhouette. In the
@@ -114,7 +124,9 @@ const COMMON = /* glsl */ `
     // Narrow on purpose: only faces that genuinely turn skyward catch it, so
     // the steep shadow planes stay dark and the mass still reads as a mass.
     float sky = bands(smoothstep(0.06, 0.92, n.y), uFillSteps);
-    dark = mix(dark, mix(dark, uFill, 0.55), sky);
+    // Light enough to keep folds readable inside the shadow mass, not enough to
+    // lift the mass itself out of the dark end.
+    dark = mix(dark, mix(dark, uFill, 0.3), sky);
 
     vec3 c = mix(vTint, mix(dark, lit, bands(lambert, uLightSteps)), uLightMix);
 

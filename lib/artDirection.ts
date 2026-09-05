@@ -35,10 +35,12 @@ const col = (hex: string) => new THREE.Color(hex);
 const COMMON = /* glsl */ `
   uniform vec3 uLit;
   uniform vec3 uShade;
+  uniform vec3 uFill;
   uniform vec3 uHaze;
   uniform vec3 uLightDir;
   uniform float uLightMix;
   uniform float uLightSteps;
+  uniform float uFillSteps;
   uniform float uHazeSteps;
   uniform float uHazeNear;
   uniform float uHazeFar;
@@ -69,7 +71,18 @@ const COMMON = /* glsl */ `
     float lambert = smoothstep(-0.32, 0.62, dot(n, normalize(uLightDir)));
 
     vec3 lit = mix(vTint, uLit, 0.34);
-    vec3 dark = mix(vTint, uShade, 0.46);
+    vec3 dark = mix(vTint, uShade, 0.62);
+
+    // Skylight. Without it every surface turned away from the sun collapses to
+    // one flat ink and a whole mountainside reads as a dead silhouette. In the
+    // reference art the shadow side is a family of navies: faces that still see
+    // the sky lift toward it, and that is what makes ridges and folds legible
+    // inside the dark mass. Banded like everything else.
+    // Narrow on purpose: only faces that genuinely turn skyward catch it, so
+    // the steep shadow planes stay dark and the mass still reads as a mass.
+    float sky = bands(smoothstep(0.06, 0.92, n.y), uFillSteps);
+    dark = mix(dark, mix(dark, uFill, 0.55), sky);
+
     vec3 c = mix(vTint, mix(dark, lit, bands(lambert, uLightSteps)), uLightMix);
 
     // Aerial perspective in steps, so distant ridges stack like cut paper
@@ -118,6 +131,9 @@ export type BandedOptions = {
   tint?: string;
   lit?: string;
   shade?: string;
+  /** Skylight colour, which gives the shadow side its internal structure. */
+  fill?: string;
+  fillSteps?: number;
   /** 0 = a flat silhouette, 1 = fully shaded. Trees and figures want 0. */
   lightMix?: number;
   lightSteps?: number;
@@ -138,10 +154,12 @@ export function bandedMaterial(o: BandedOptions = {}) {
     uniforms: {
       uLit: { value: col(o.lit ?? PALETTE.cream) },
       uShade: { value: col(o.shade ?? PALETTE.deep) },
+      uFill: { value: col(o.fill ?? PALETTE.navy) },
       uHaze: { value: col(PALETTE.paper) },
       uLightDir: { value: new THREE.Vector3(-0.78, 0.30, -0.55).normalize() },
       uLightMix: { value: o.lightMix ?? 1 },
       uLightSteps: { value: o.lightSteps ?? 3 },
+      uFillSteps: { value: o.fillSteps ?? 3 },
       uHazeSteps: { value: o.hazeSteps ?? 6 },
       uHazeNear: { value: o.hazeNear ?? 90 },
       uHazeFar: { value: o.hazeFar ?? 1150 },

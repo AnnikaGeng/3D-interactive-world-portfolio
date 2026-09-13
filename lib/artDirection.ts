@@ -34,9 +34,9 @@ export const PALETTE = {
  * reaches the sea. One journey, one continuous time of day.
  */
 export const SKY = {
-  dayTop:      '#9fb8cc',   // blue overhead; the warm band stays at the horizon
-  dayMid:      '#dcdcd6',
-  dayHorizon:  '#f7ead8',
+  dayTop:      '#ead3bd',   // blue overhead; the warm band stays at the horizon
+  dayMid:      '#f0d9c2',
+  dayHorizon:  '#edd9c4',
   duskTop:     '#2f4a63',
   duskMid:     '#b0837f',
   duskHorizon: '#f6c79a',
@@ -70,9 +70,11 @@ const COMMON = /* glsl */ `
   uniform float uHazeNear;
   uniform float uHazeFar;
   uniform float uGrain;
+  uniform float uJourneyProgress;
 
   varying vec3 vTint;
   varying vec3 vWorldPos;
+  varying vec3 vSurfaceNormal;
 
   // Quantise, but leave a sliver of softness on each step so the edges read as
   // printed ink rather than as aliasing.
@@ -88,7 +90,8 @@ const COMMON = /* glsl */ `
   vec3 shadeSurface() {
     // Face normal from screen-space derivatives: every triangle gets one flat
     // value, which is the faceted look the artwork already has.
-    vec3 n = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+    vec3 face = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+    vec3 n=normalize(mix(face,normalize(vSurfaceNormal),(1.0-smoothstep(.19,.31,uJourneyProgress))*.9));
     // Stretched rather than the usual *0.5+0.5: that remap crams every
     // upward-facing surface into the top band, which is most of a landscape,
     // and the whole frame washes out to the lit colour. Widening it lets which
@@ -130,6 +133,12 @@ const COMMON = /* glsl */ `
 
     vec3 c = mix(vTint, mix(dark, lit, bands(lambert, uLightSteps)), uLightMix);
 
+    // Distant climbing terrain stays in the valley's cool blue family at the opening.
+    float opening = 1.0-smoothstep(.19,.31,uJourneyProgress);
+    float farLand = smoothstep(320.0,490.0,-vWorldPos.z)*opening;
+    vec3 blueRock=mix(vec3(.025,.07,.12),vec3(.11,.20,.28),clamp(n.y*.7+.2,0.0,1.0));
+    c=mix(c,blueRock,farLand*.96);
+
     // Aerial perspective in steps, so distant ridges stack like cut paper
     // instead of dissolving into a gradient.
     float haze = smoothstep(uHazeNear, uHazeFar, distance(cameraPosition, vWorldPos));
@@ -142,6 +151,7 @@ const COMMON = /* glsl */ `
 const VERTEX = /* glsl */ `
   varying vec3 vTint;
   varying vec3 vWorldPos;
+  varying vec3 vSurfaceNormal;
 
   void main() {
     vec3 tint = vec3(1.0);
@@ -153,6 +163,11 @@ const VERTEX = /* glsl */ `
     #endif
     vTint = tint;
 
+    vec3 surfaceNormal=normal;
+    #ifdef USE_INSTANCING
+      surfaceNormal=mat3(instanceMatrix)*surfaceNormal;
+    #endif
+    vSurfaceNormal=normalize(mat3(modelMatrix)*surfaceNormal);
     vec4 local = vec4(position, 1.0);
     #ifdef USE_INSTANCING
       local = instanceMatrix * local;
@@ -202,6 +217,7 @@ export function setAtmosphere(progress: number) {
   const t = Math.min(1, Math.max(0, (progress - 0.52) / 0.42));
   for (const m of atmosphere) {
     (m.uniforms.uHaze.value as THREE.Color).copy(dayHaze).lerp(duskHaze, t);
+    m.uniforms.uJourneyProgress.value=progress;
   }
 }
 
@@ -228,6 +244,7 @@ export function bandedMaterial(o: BandedOptions = {}) {
       uHazeNear: { value: o.hazeNear ?? 90 },
       uHazeFar: { value: o.hazeFar ?? 1150 },
       uGrain: { value: o.grain ?? 0.07 },
+      uJourneyProgress: { value: 0 },
     },
   });
   atmosphere.push(m);

@@ -9,7 +9,43 @@ export function noise(x: number, y: number) {
   return THREE.MathUtils.lerp(THREE.MathUtils.lerp(hash(ix,iy),hash(ix+1,iy),u),THREE.MathUtils.lerp(hash(ix,iy+1),hash(ix+1,iy+1),u),v);
 }
 export function fbm(x:number,y:number) { return noise(x,y)*.58 + noise(x*2.1+4,y*2.1)*.27 + noise(x*4.3,y*4.3+7)*.1 + noise(x*8.7,y*8.7)*.05; }
-export function pathX(s:number) { return Math.sin(s*.013)*13 + Math.sin(s*.027+.6)*7; }
+const valleyPath = new THREE.SplineCurve([
+ new THREE.Vector2(-240,-150),new THREE.Vector2(-140,-110),new THREE.Vector2(-90,-50),
+ new THREE.Vector2(-40,24),new THREE.Vector2(10,83),new THREE.Vector2(58,64),
+ new THREE.Vector2(105,12),new THREE.Vector2(150,-12),new THREE.Vector2(190,12),
+ new THREE.Vector2(225,-9),new THREE.Vector2(260,8),new THREE.Vector2(305,-5),
+ new THREE.Vector2(350,4),new THREE.Vector2(410,0),new THREE.Vector2(460,0),
+]);
+export function pathX(s:number) {
+ const original=Math.sin(s*.013)*13 + Math.sin(s*.027+.6)*7;
+ if(s>=460)return original;
+ // Explicit bends establish the reference composition before the climb begins.
+ const knots=valleyPath.points;let i=0;while(i<knots.length-2&&s>knots[i+1].x)i++;
+ const t=smooth(knots[i].x,knots[i+1].x,s);
+ const x=THREE.MathUtils.lerp(knots[i].y,knots[i+1].y,t);
+ return THREE.MathUtils.lerp(x,original,smooth(330,460,s));
+}
+export function trailWidth(s:number) {return THREE.MathUtils.lerp(10,2.3,smooth(-130,160,s));}
+// The ascent opening (31% travel) places the traveler at s ≈ 430.
+export const CLIMB_ROPE={start:430,full:470,release:755,end:815};
+export function climbRopeBlend(s:number){return smooth(CLIMB_ROPE.start,CLIMB_ROPE.full,s)*(1-smooth(CLIMB_ROPE.release,CLIMB_ROPE.end,s));}
+/** Distance to the curved painted stroke, including neighbouring bends. */
+export function nearTrail(x:number,s:number,padding=0){
+ const reach=12+padding;
+ for(let t=s-reach;t<=s+reach;t+=1){
+  if(Math.hypot(x-pathX(t),s-t)<trailWidth(t)+padding)return true;
+ }
+ return false;
+}
+function valleyHeight(x:number,s:number) {
+ const mound=(cx:number,cs:number,wx:number,ws:number,h:number)=>h*Math.exp(-Math.pow((x-cx)/wx,2)-Math.pow((s-cs)/ws,2));
+ const left=mound(-220,-20,105,130,112)+mound(-190,180,85,95,88)+mound(-265,345,130,100,102);
+ const right=mound(250,70,110,150,143)+mound(170,260,85,100,105)+mound(300,380,140,110,119);
+ const folds=(fbm(x*.024,s*.021)-.4)*.19;
+ const front=mound(150,-63,108,78,63)+mound(-185,-170,100,65,34);
+ const distant=mound(-90,355,70,80,37)+mound(92,430,110,76,55)+mound(-100,220,75,43,32)+mound(100,315,82,48,44);
+ return 3+(left+right)*(1+folds)+front+distant;
+}
 export function elevation(s:number) { return 155*smooth(330,730,s) - 155*smooth(885,1280,s); }
 /** The sea plane's height, and the stretch of the route it covers. */
 export const SEA_LEVEL = -0.3;
@@ -21,7 +57,7 @@ export function underwater(x:number,s:number) {
 }
 
 /** A lake in the valley floor, placed where the reference painting has one. */
-export const LAKE = {x:72, s:55, rx:42, rz:72, surface:-3};
+export const LAKE = {x:-52, s:22, rx:68, rz:44, surface:3.1};
 /** Radius multiplier by bearing — a few harmonics, so the outline reads as a
  *  lake rather than as an ellipse. */
 function lakeWobble(a:number) {
@@ -32,7 +68,7 @@ function lakeWobble(a:number) {
 export function lakeMask(x:number,s:number) {
   const dx=(x-LAKE.x)/LAKE.rx, ds=(s-LAKE.s)/LAKE.rz;
   const w=lakeWobble(Math.atan2(ds,dx));
-  return 1 - smooth(.62*w,w,Math.hypot(dx,ds));
+  return 1 - smooth(.8*w,1.04*w,Math.hypot(dx,ds));
 }
 
 /**
@@ -85,7 +121,7 @@ export function terrainHeight(x:number,s:number) {
   // back is not enough on its own — from a low viewpoint a wall this tall still
   // fills the frame and the shot reads as a corridor rather than a landscape.
   const inValley=1-smooth(300,580,s);
-  const shoulder=rise*(mountain+ridge*20+detail+folds)*(1-.26*inValley);
+  const shoulder=rise*(mountain+ridge*20+detail+folds)*(1-.26*inValley)*(1-.42*(1-smooth(470,660,s)));
   const coastal=1-smooth(1010,1320,s);
   const summit=smooth(550,755,s)*(1-smooth(900,1080,s));
   const summitDrop=smooth(18,145,d)*112*summit;
@@ -99,11 +135,12 @@ export function terrainHeight(x:number,s:number) {
   const inland=elevation(s)+shoulder*coastal*(1-.55*summit)-summitDrop+outerPeaks+coastLeft+nearRipple + canyon*Math.exp(-Math.pow((x+95)/45,2))*18+distantPeaks;
   const peninsula=Math.exp(-Math.pow((x+40)/65,2))*(1-smooth(1280,1430,s));
   const headland=-13+(38+(fbm(x*.065,s*.06)-.5)*13)*peninsula;
-  const ground=THREE.MathUtils.lerp(inland,headland,smooth(1170,1320,s));
+  const existing=THREE.MathUtils.lerp(inland,headland,smooth(1170,1320,s));
+  const ground=THREE.MathUtils.lerp(valleyHeight(x,s),existing,smooth(340,500,s));
   // Dig the basin out rather than adding a plane on top, so the shoreline is
   // wherever the ground actually meets the water.
   const basin=lakeMask(x,s);
-  return basin>0 ? THREE.MathUtils.lerp(ground,Math.min(ground,elevation(s)-9),basin) : ground;
+  return basin>0 ? THREE.MathUtils.lerp(ground,Math.min(ground,LAKE.surface-8),basin) : ground;
 }
 
 export function makeTerrain(s0:number,s1:number) {
@@ -116,7 +153,10 @@ export function makeTerrain(s0:number,s1:number) {
   // flat inks; interpolating between them is what makes procedural terrain read
   // as generic. Snapping to the nearest one gives the large single-colour
   // regions the illustrations are built from.
-  const ramp=['#0a1a26','#14314a','#2e4b5f','#6e8496','#d7c1a9','#ecdfc9'].map(h=>new THREE.Color(h));
+  // Value range sampled from the reference painting: deep blue foreground,
+  // blue-grey middle distance, and restrained pale ridges. The very darkest
+  // ink is reserved for props and trees so the terrain still keeps detail.
+  const ramp=['#193445','#274659','#395a70','#526f83','#7890a0','#adb6b8'].map(h=>new THREE.Color(h));
   // The valley floor in the reference is near-white sand. Leaving it in the
   // dark end of the ramp is what makes the whole picture read as grey: the
   // shading and the haze then lift it only as far as a mid tone, and nothing in
@@ -146,11 +186,16 @@ export function makeTerrain(s0:number,s1:number) {
     v += (fbm(x*.007,s*.006)-.5)*.30 + (fbm(x*.028,s*.024)-.5)*.09;
     const c=ramp[Math.min(ramp.length-1,Math.max(0,Math.floor(clamp(v)*ramp.length)))].clone();
 
-    // Lay the pale floor over the ramp. Generous on height: what reads as "the
-    // valley floor" in frame is mostly gentle rising ground, so a tight cut
-    // leaves only a strip beside the trail pale and everything around it rock.
-    const floor=(1-smooth(3,62,h-elevation(s)))*(1-smooth(360,640,s));
-    c.lerp(sand,clamp(floor+(fbm(x*.02,s*.017)-.5)*.12)*.97);
+    // Keep the valley inside the same stepped mountain palette so the floor,
+    // walls and ridges remain connected. The previous solid blue override
+    // erased the height bands and made the whole landscape look like one slab.
+    if(s<500){
+      const valleyBlue=new THREE.Color('#45657a');
+      c.lerp(valleyBlue,.22*(1-smooth(340,500,s)));
+
+      // Foreground pigment is evaluated per pixel in the terrain material;
+      // interpolating it across this mesh made the colour boundaries blurry.
+    }
 
     colors.push(c.r,c.g,c.b);
   }
@@ -165,54 +210,49 @@ export function surfaceHeight(x:number,s:number) {
  return v>u?a+(d-c)*u+(c-a)*v:a+(b-a)*u+(d-b)*v;
 }
 export function makeTrail(s0=-140,s1=1315,width=2.3) {
-  const p=[],indices=[],uv=[];const n=Math.ceil((s1-s0)*1.5);
+  const p:number[]=[],indices:number[]=[],uv:number[]=[];const n=Math.ceil((s1-s0)*1.5),across=12;
   const deckHeight=terrainHeight(pathX(1290),1290)+.31;
   for(let i=0;i<=n;i++) {
     const s=THREE.MathUtils.lerp(s0,s1,i/n),x=pathX(s);
-    const w=width*(.85+.18*Math.sin(s*.04));
-
-    // The ribbon is only two vertices wide and flat between them, while the
-    // ground beneath spans several 6-unit triangles. Sampling just the two
-    // edges lets any bulge in between push up through the middle of the path,
-    // which is what produced the dark patches on it. Clear the highest ground
-    // under the whole width instead — which also stops the path tilting
-    // sideways from one edge sitting higher than the other.
-    let ground=-Infinity;
-    for(let k=-2;k<=2;k++) ground=Math.max(ground,surfaceHeight(x+k*w*.5,s));
-    const base=ground+.22;
-
+    const w=(s<330?trailWidth(s):width)*(.97+.03*Math.sin(s*.04));
     const deckInfluence=1-smooth(7,16,Math.abs(s-1290));
-    const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),deckInfluence);
-    for(const side of [-1,1]){p.push(x+side*w,y,-s);uv.push((side+1)/2,s*.06);}
-    if(i<n){const j=i*2;indices.push(j,j+1,j+2,j+1,j+3,j+2);}
+    for(let j=0;j<=across;j++){
+      const derivative=(pathX(s+.1)-pathX(s-.1))/.2;
+      const offset=(j/across*2-1)*w/Math.sqrt(1+derivative*derivative);
+      const xx=x+offset,ss=s-offset*derivative;
+      const base=surfaceHeight(xx,ss)+.3;
+      const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),deckInfluence);
+      p.push(xx,y,-ss);uv.push(j/across,s*.06);
+      if(i<n&&j<across){const a=i*(across+1)+j,b=a+across+1;indices.push(a,a+1,b,a+1,b+1,b);}
+    }
   }
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 export const chapters = [
- {id:'valley',name:'Valley',en:'The valley',kicker:'01 / THE BEGINNING',
-  title:['Every journey','starts within.'],body:'Follow the light in, between the mountains.',
-  at:0,until:.27,hotspot:'A visitor at the water',
+ {id:'valley',name:'About',en:'About me',kicker:'01 / YI GENG · FULL-STACK DEVELOPER',
+  title:['Products built','from end to end.'],body:'Java & TypeScript. Product thinking. Based in Salzburg.',
+  at:0,until:.27,hotspot:'Meet Yi',
   note:'Before setting out, stop. The smallest movement in the valley is still worth noticing.',
-  label:'Find the deer by the lake'},
- {id:'climb',name:'Climb',en:'The climb',kicker:'02 / THE ASCENT',
-  title:['A little further.','A little higher.'],body:'Upward, along the winding path.',
-  at:.31,until:.51,hotspot:'Markers along the way',
+  label:'Read about Yi Geng'},
+ {id:'climb',name:'Experience',en:'Experience',kicker:'02 / EXPERIENCE',
+  title:['Product thinking.','Production code.'],body:'Salzburg AG · Energy software for 143 communities.',
+  at:.31,until:.51,hotspot:'My experience',
   note:'The view narrows and the pace slows. Coral markers thread together the next stretch you can actually reach.',
-  label:'Approach the climbing markers'},
- {id:'summit',name:'Summit',en:'The summit',kicker:'03 / A NEW PERSPECTIVE',
-  title:['Room to breathe.'],body:'The road behind you becomes the view.',
-  at:.57,until:.75,hotspot:'The lookout',
+  label:'Read work experience'},
+ {id:'summit',name:'Projects',en:'Selected projects',kicker:'03 / SELECTED PROJECTS',
+  title:['Ideas,','made real.'],body:'From a React interface to the API behind it.',
+  at:.57,until:.75,hotspot:'Explore my projects',
   note:'Only past the ridge does the far side appear. There is no finish line here, only a wider view.',
-  label:'Look out across the range'},
- {id:'ocean',name:'Open sea',en:'The open sea',kicker:'04 / BEYOND THE HORIZON',
-  title:['And then,','the open sea.'],body:'Where the mountains end, the story keeps going.',
-  at:.86,until:1,hotspot:'The door to the sea',
+  label:'View selected projects'},
+ {id:'ocean',name:'Contact',en:'Let’s connect',kicker:'04 / WHAT’S NEXT',
+  title:['Let’s build','what’s next.'],body:'Based in Austria. Working remotely across European hours.',
+  at:.86,until:1,hotspot:'Get in touch',
   note:'Through the stone doorway the noise of the route stays behind. Ahead is somewhere to begin again.',
-  label:'Pass through the stone doorway'},
+  label:'Contact Yi Geng'},
 ];
 export const cameraKnots = [
- {p:0,pos:[28,54,125],look:[-8,45,-170]},
- {p:.13,pos:[-6,23,-72],look:[-8,25,-260]},
+ {p:0,pos:[0,73,180],look:[0,23,-170]},
+ {p:.13,pos:[40,28,-55],look:[-3,22,-270]},
  {p:.26,pos:[-8,14,-280],look:[4,58,-442]},
  {p:.38,pos:[-12,52,-446],look:[15,143,-640]},
  {p:.49,pos:[12,132,-623],look:[-10,192,-785]},
@@ -230,4 +270,26 @@ export function cameraAt(p:number,position:THREE.Vector3,look:THREE.Vector3) {
  const u=(i+t)/(cameraKnots.length-1);positionCurve.getPoint(u,position);lookCurve.getPoint(u,look);
  // Keep the guided route above the actual terrain even between control points.
  position.y=Math.max(position.y,terrainHeight(position.x,-position.z)+5);
+}
+
+/** A world-space pigment mask. The path is drawn directly on the terrain,
+ * so it shares every slope and cannot hover or intersect a mountain. */
+export function makeTrailPigment() {
+ const width=3072,height=4096,data=new Uint8Array(width*height);
+ const minX=-450,minS=-240,worldWidth=900,worldDepth=1760;
+ for(let s=-180;s<=1315;s+=.35){
+  const x=pathX(s),r=(s<330?trailWidth(s):2.3)*THREE.MathUtils.lerp(1,.035,climbRopeBlend(s));
+  const cx=(x-minX)/worldWidth*(width-1),cy=(s-minS)/worldDepth*(height-1);
+  const rx=r/worldWidth*(width-1),ry=r/worldDepth*(height-1);
+  for(let iy=Math.max(0,Math.floor(cy-ry-1));iy<=Math.min(height-1,Math.ceil(cy+ry+1));iy++){
+   for(let ix=Math.max(0,Math.floor(cx-rx-1));ix<=Math.min(width-1,Math.ceil(cx+rx+1));ix++){
+    const d=Math.hypot((ix-cx)/rx,(iy-cy)/ry);
+    const pigment=Math.round((1-smooth(.76,1.04,d))*255);
+    const index=iy*width+ix;if(pigment>data[index])data[index]=pigment;
+   }
+  }
+ }
+ const texture=new THREE.DataTexture(data,width,height,THREE.RedFormat);
+ texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+ texture.generateMipmaps=false;texture.needsUpdate=true;return texture;
 }

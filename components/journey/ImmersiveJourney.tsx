@@ -1,11 +1,12 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { Component, type ReactNode, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { cameraAt, chapters, clamp, terrainHeight } from '@/lib/terrain';
 import { PALETTE, SKY, setAtmosphere } from '@/lib/artDirection';
-import World, { landmarkPosition } from './World';
+import World, { DEFAULT_FOREGROUND, type ForegroundSettings, landmarkPosition } from './World';
+import PortfolioNote from './PortfolioNote';
 
 type JourneyState={target:number,current:number,yaw:number,pitch:number,dragging:boolean,reduced:boolean,focus:number|null};
 type FrameProps={state:React.RefObject<JourneyState>,onProgress:(p:number)=>void,marker:React.RefObject<HTMLButtonElement|null>,onReady:()=>void};
@@ -70,11 +71,24 @@ function Sky({state}:{state:React.RefObject<JourneyState>}){
 
 class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{
  state={failed:false};static getDerivedStateFromError(){return {failed:true};}
- render(){return this.state.failed?<div className="journey-fallback"><p>The 3D scene could not start.</p><button onClick={()=>window.location.reload()}>Reload</button><a href="/illustration">View the illustrated version</a></div>:this.props.children;}
+ render(){return this.state.failed?<div className="journey-fallback"><p>The 3D scene could not start.</p><button onClick={()=>window.location.reload()}>Reload</button><a href="/resume">Read Yi Geng’s résumé</a></div>:this.props.children;}
 }
 export default function ImmersiveJourney(){
+ const [foreground,setForeground]=useState<ForegroundSettings>(DEFAULT_FOREGROUND);
+ const [tuning,setTuning]=useState(false),[settingsLoaded,setSettingsLoaded]=useState(false);
+ const deferredForeground=useDeferredValue(foreground);
+ useEffect(()=>{
+  try{
+   const saved=JSON.parse(localStorage.getItem('ascent.foreground.v1')||'null');
+   if(saved&&['height','width','relief','offset'].every(key=>Number.isFinite(saved[key]))){
+    setForeground({height:clamp(saved.height,0,1.5),width:clamp(saved.width,.6,1.4),relief:clamp(saved.relief),offset:clamp(saved.offset,-100,0)});
+   }
+  }catch{}
+  setSettingsLoaded(true);
+ },[]);
+ useEffect(()=>{if(settingsLoaded)try{localStorage.setItem('ascent.foreground.v1',JSON.stringify(foreground));}catch{}},[foreground,settingsLoaded]);
  const state=useRef<JourneyState>({target:0,current:0,yaw:0,pitch:0,dragging:false,reduced:false,focus:null});
- const marker=useRef<HTMLButtonElement>(null),closeButton=useRef<HTMLButtonElement>(null);
+ const marker=useRef<HTMLButtonElement>(null);
  const [progress,setProgress]=useState(0),[ready,setReady]=useState(false),[focus,setFocus]=useState<number|null>(null),[looking,setLooking]=useState(false),[dragging,setDragging]=useState(false);
  const active=progress<.285?0:progress<.535?1:progress<.805?2:3;
  const chapter=chapters[active];
@@ -87,7 +101,6 @@ export default function ImmersiveJourney(){
  },[]);
  const explore=useCallback((i:number)=>{state.current.focus=i;state.current.yaw=0;state.current.pitch=0;setFocus(i);setLooking(false);},[]);
  const returnToPath=useCallback(()=>{state.current.focus=null;state.current.yaw=0;state.current.pitch=0;setFocus(null);setLooking(false);marker.current?.focus({preventScroll:true});},[]);
- useEffect(()=>{if(focus!==null)closeButton.current?.focus({preventScroll:true});},[focus]);
  useEffect(()=>{
   const media=window.matchMedia('(prefers-reduced-motion: reduce)');
   const motion=()=>{state.current.reduced=media.matches;setMotionReduced(media.matches);};motion();media.addEventListener('change',motion);
@@ -112,6 +125,7 @@ export default function ImmersiveJourney(){
   onScroll();window.addEventListener('scroll',onScroll,{passive:true});window.addEventListener('resize',onScroll);
   const onKey=(e:KeyboardEvent)=>{
    if(e.key==='Escape'){returnToPath();return;}
+   if(state.current.focus!==null)return;
    if((e.target as HTMLElement).closest('button,a,input'))return;
    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
     e.preventDefault();state.current.yaw+=(e.key==='ArrowRight'?-.13:.13);setLooking(true);
@@ -131,23 +145,33 @@ export default function ImmersiveJourney(){
  const titlePhase=clamp((progress-chapter.at)/(.14));
  const opacity=focus===null?1-clamp((titlePhase-.45)/.55)*.83:0;
  return <>
-  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Ascent — a journey in four chapters">
+  <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Yi Geng — an interactive portfolio in four chapters">
    <div className="journey-world" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
-    <SceneBoundary><Canvas dpr={[1,1.5]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}
+    <SceneBoundary><Canvas dpr={[1,2]} camera={{position:[18,16,90],fov:51,near:.3,far:6500}} gl={{antialias:true,powerPreference:'high-performance',alpha:false}}
      // Flat printed colour: any tone mapping pulls the palette toward neutral.
      onCreated={({gl})=>{gl.toneMapping=THREE.NoToneMapping;}}>
      <color attach="background" args={[PALETTE.paper]}/><fogExp2 attach="fog" args={[PALETTE.haze,.0025]}/>
      {/* Every material now shades itself in flat steps, so the scene needs no lights. */}
-     <Sky state={state}/><World/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
+     <Sky state={state}/><World progress={state} foreground={deferredForeground}/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
     </Canvas></SceneBoundary>
    </div>
    <div className="journey-atmosphere" aria-hidden="true"/><div className="journey-grain" aria-hidden="true"/>
-   {!ready && <div className="journey-loading"><span>ASCENT</span><p>Building the world</p><i/></div>}
-   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Ascent — back to the start">ascent</a><span className="journey-header-note">A JOURNEY THROUGH PERSPECTIVE</span><button onClick={()=>explore(active)}>Explore here <span>↗</span></button></header>
+   {!ready && <div className="journey-loading"><span>YI GENG</span><p>A journey through my work</p><i/><a className="loading-resume" href="/resume">Read my résumé ↗</a></div>}
+   <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Yi Geng — back to the start">Yi Geng</a><span className="journey-header-note">FULL-STACK DEVELOPER · JAVA & TYPESCRIPT</span><div className="journey-header-actions"><a href="/resume">Résumé <span>↗</span></a><button onClick={()=>explore(active)}>{active===3?'Contact':'Explore'} <span>↗</span></button></div></header>
+   {active===0&&focus===null&&<aside className="foreground-controls" aria-label="前景山调整">
+    <button className="foreground-toggle" aria-expanded={tuning} aria-controls="foreground-settings" onClick={()=>setTuning(value=>!value)}>前景山调整 <span aria-hidden="true">{tuning?'−':'＋'}</span></button>
+    {tuning&&<div id="foreground-settings" className="foreground-settings">
+     <p>拖动滑杆，实时调整山形。</p>
+     {([
+      ['height','山体高度',0,1.5,.05],['width','山体宽度',.6,1.4,.05],['relief','山脊起伏',0,1,.05],['offset','前后位置',-100,0,1]
+     ] as const).map(([key,label,min,max,step])=><label key={key} htmlFor={`foreground-${key}`}><span>{label}<output>{key==='offset'?`${Math.round(foreground[key])}`:`${Math.round(foreground[key]*100)}%`}</output></span><input id={`foreground-${key}`} type="range" min={min} max={max} step={step} value={foreground[key]} onChange={e=>setForeground(current=>({...current,[key]:Number(e.target.value)}))}/></label>)}
+     <div className="foreground-settings-footer"><small>自动记住本机设置</small><button onClick={()=>setForeground({...DEFAULT_FOREGROUND})}>恢复默认</button></div>
+    </div>}
+   </aside>}
    <nav className="chapter-nav" aria-label="Chapters">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
-   <section className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p></section>
+   <section className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p><button className="journey-content-link" onClick={()=>explore(active)}>{chapter.hotspot} <span aria-hidden="true">↗</span></button></section>
    <button className="world-hotspot" ref={marker} onClick={()=>explore(active)} aria-label={chapter.label}><span className="hotspot-ring">+</span><span className="hotspot-caption" style={{opacity:titlePhase>.8?1:0}}>{chapter.hotspot}</span></button>
-   {focus!==null && <aside className="exploration-note" role="dialog" aria-labelledby="note-title"><span className="journey-eyebrow">{chapters[focus].en} / FIELD NOTE</span><h2 id="note-title">{chapters[focus].hotspot}</h2><p>{chapters[focus].note}</p><button ref={closeButton} onClick={returnToPath}>Back to the path <span>↙</span></button></aside>}
+   {focus!==null && <PortfolioNote chapter={focus} onClose={returnToPath}/>}
    <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}</p></div>
     <div className="journey-instruction">{focus!==null?'Scroll to continue':looking?<button onClick={returnToPath}>Look forward again ↺</button>:<><span className="scroll-stroke"/>Scroll to travel <span className="instruction-divider">/</span> Drag to look around</>}</div>
     {progress>.975?<button className="journey-next" onClick={()=>navigate(0)}>Start again <span>↺</span></button>:<button className="journey-next" onClick={()=>navigate(active<3?chapters[active+1].at:1)}>{active<3?'Next chapter':'To the sea'} <span>↓</span></button>}

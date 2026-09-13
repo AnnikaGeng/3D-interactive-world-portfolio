@@ -241,6 +241,7 @@ html, body {
 .journey-line {font-size:14px;letter-spacing:.16em;opacity:.9;margin-top:28px;}
 .chapter-1 .journey-copy {left:37%;right:8%;top:26%;}
 .chapter-1 .journey-copy h1 {font-size:clamp(52px,6vw,94px);}
+.chapter-1 .journey-line {max-width:36em;margin:24px auto 0;letter-spacing:.035em;line-height:1.7;}
 .chapter-2 .journey-copy {top:19%;}
 .chapter-3 .journey-copy {left:42%;right:7%;top:24%;}
 .chapter-3 .journey-copy h1 {font-size:clamp(55px,6.3vw,100px);}
@@ -316,18 +317,7 @@ html, body {
 .hotspot-caption {background:#183b4bd9;letter-spacing:.03em;}
 .chapter-0 .journey-copy .journey-eyebrow {color:#efdfca;-webkit-text-stroke:0;text-shadow:none;}
 .chapter-0 .journey-line { -webkit-text-stroke:0; }
-.foreground-controls {position:absolute;right:48px;top:95px;z-index:5;width:248px;color:#eee0ca;}
-.foreground-toggle {display:flex;justify-content:space-between;align-items:center;gap:22px;margin-left:auto;border:1px solid #e9dac34d;border-radius:5px;padding:9px 12px;background:#163646ed;font-size:12px!important;}
-.foreground-settings {margin-top:8px;padding:18px;background:#142e3fee;border:1px solid #e9dac329;border-radius:7px;box-shadow:0 10px 35px #071d2924;}
-.foreground-settings p {font-size:12px;line-height:1.6;margin:0 0 16px;opacity:.7;}
-.foreground-settings label {display:block;margin:14px 0;}
-.foreground-settings label>span {display:flex;justify-content:space-between;font-size:12px;}
-.foreground-settings output {font-variant-numeric:tabular-nums;color:#f4a087;}
-.foreground-settings input {display:block;width:100%;height:24px;margin:5px 0 0;accent-color:#f48a70;cursor:ew-resize;}
-.foreground-settings-footer {display:flex;align-items:center;justify-content:space-between;border-top:1px solid #eee0ca26;padding-top:12px;gap:8px;}
-.foreground-settings-footer small {font-size:10px;opacity:.6;}
-.foreground-settings-footer button {background:transparent;border:0;text-decoration:underline;font-size:12px;}
-@media(max-width:760px){.foreground-controls{right:20px;top:76px;width:230px;}.foreground-settings{max-height:52dvh;overflow:auto;}}
+
 
 /* Résumé content shares the landscape's ink, paper and restrained coral. */
 .journey-header-actions{display:flex;align-items:center;gap:24px}
@@ -336,6 +326,11 @@ html, body {
 .journey-content-link{pointer-events:auto;background:rgba(18,48,62,.75);border:1px solid #ecdcc36b;border-radius:2px;padding:10px 16px;margin-top:7px;font-size:12px!important;letter-spacing:.035em;color:#f7e7cf!important;text-shadow:none}
 .journey-content-link span{margin-left:22px}
 .journey-content-link:hover{background:#173747}
+.chapter-2 .journey-line{display:table;max-width:100%;margin:24px auto 14px;padding:8px 14px;background:#f1e2cfdf;border-radius:3px;color:#405a65;font-size:14px;font-weight:400;line-height:1.65;letter-spacing:.025em;opacity:1;-webkit-text-stroke:0;text-shadow:none}
+.chapter-2 .journey-copy h1{color:#fff0d9;-webkit-text-stroke:0;text-shadow:0 2px 3px #25445370,0 5px 20px #25445330}
+.chapter-2 .journey-copy .journey-eyebrow{-webkit-text-stroke:0}
+.chapter-2 .journey-content-link{background:#506d7bc9;border-color:#f0ddc49c}
+.chapter-2 .journey-content-link:hover{background:#506d7b}
 .loading-resume{color:#efe1d4;font-size:13px;margin-top:32px;text-underline-offset:5px}
 .portfolio-note{position:fixed;inset:0;width:min(640px,calc(100vw - 64px));max-height:calc(100dvh - 80px);margin:auto 5vw auto auto;padding:0;border:1px solid #decbb74d;border-radius:5px;background:#17323ff5;color:#f0e3d0;box-shadow:0 24px 100px #071d2959}
 .portfolio-note[open]{display:flex;flex-direction:column}

@@ -28,7 +28,7 @@ export function landmarkPosition(i:number) { const a=landmarks[i];return new THR
 function Terrain() {
  const geometries=useMemo(()=>Array.from({length:8},(_,i)=>makeTerrain(-240+i*220,-20+i*220)),[]);
  const pigment=useMemo(makeTrailPigment,[]);
- const deckTrail=useMemo(()=>makeTrail(1274,1307),[]);
+ const deckTrail=useMemo(()=>makeTrail(1270,1310,3.2),[]);
  const material=useMemo(()=>{
   // Fixed world-space light keeps the tonal pattern stable while scrolling.
   // Smoothed world normals keep those folds broad and painterly instead of
@@ -117,9 +117,21 @@ function Terrain() {
    `
   });
  },[pigment]);
- useEffect(()=>()=>{geometries.forEach(g=>g.dispose());deckTrail.dispose();pigment.dispose();material.dispose();},[geometries,deckTrail,pigment,material]);
+ const deckMaterial=useMemo(()=>{
+  // Sample the same world-space pigment, colour wash and grain as the terrain.
+  // Only the section crossing the raised threshold needs a separate surface.
+  const m=material.clone();m.vertexColors=false;m.transparent=true;m.depthWrite=false;
+  m.polygonOffset=true;m.polygonOffsetFactor=-1;m.polygonOffsetUnits=-1;
+  m.vertexShader=m.vertexShader.replace('vTerrainColor=color;','vTerrainColor=vec3(0.0);');
+  m.fragmentShader=m.fragmentShader.replace('vec3 finalColor=mix(shaded,trailColor,coverage*0.98);','vec3 finalColor=trailColor;')
+   .replace('gl_FragColor=vec4(finalColor,1.0);','float join=smoothstep(1270.0,1278.0,vLand.y)*(1.0-smoothstep(1302.0,1310.0,vLand.y)); gl_FragColor=vec4(finalColor,coverage*join);');
+  // Cloning a ShaderMaterial also clones textures; reuse the original pigment.
+  m.uniforms.uTrailPigment.value=pigment;
+  return m;
+ },[material,pigment]);
+ useEffect(()=>()=>{geometries.forEach(g=>g.dispose());deckTrail.dispose();deckMaterial.dispose();pigment.dispose();material.dispose();},[geometries,deckTrail,deckMaterial,pigment,material]);
  return <>{geometries.map((g,i)=><mesh key={i} geometry={g} material={material}/>)}
-  <mesh geometry={deckTrail}><meshBasicMaterial color="#f27665" fog={false}/></mesh>
+  <mesh geometry={deckTrail} material={deckMaterial}/>
  </>;
 }
 
@@ -846,9 +858,9 @@ function CoastalRocks(){
 function Portal(){
  const loc=landmarks[3],y=terrainHeight(loc.x,loc.s);
  return <group position={[loc.x,y,-loc.s]}>
-  {[-1,1].map(s=><mesh key={s} position={[s*7,10,0]}><boxGeometry args={[2,20,2.6]}/><meshBasicMaterial color={s===-1?PALETTE.cream:PALETTE.deep}/></mesh>)}
+  {[-1,1].map(s=><mesh key={s} position={[s*7,9.5,0]}><boxGeometry args={[2,19,2.6]}/><meshBasicMaterial color={s===-1?PALETTE.cream:PALETTE.deep}/></mesh>)}
   <mesh position={[0,20,0]}><boxGeometry args={[16,2,2.6]}/><meshBasicMaterial color={PALETTE.navy}/></mesh>
-  <mesh position={[-5.96,10,.1]}><boxGeometry args={[.07,19.5,2.7]}/><meshBasicMaterial color={PALETTE.paper}/></mesh>
+  <mesh position={[-5.96,9.5,.1]}><boxGeometry args={[.07,18.8,2.7]}/><meshBasicMaterial color={PALETTE.paper}/></mesh>
   <mesh position={[0,-.1,0]}><boxGeometry args={[17,.6,14]}/><meshBasicMaterial color={PALETTE.sand}/></mesh>
  </group>;
 }

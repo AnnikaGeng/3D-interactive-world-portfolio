@@ -215,13 +215,13 @@ export function makeTrail(s0=-140,s1=1315,width=2.3) {
   for(let i=0;i<=n;i++) {
     const s=THREE.MathUtils.lerp(s0,s1,i/n),x=pathX(s);
     const w=(s<330?trailWidth(s):width)*(.97+.03*Math.sin(s*.04));
-    const deckInfluence=1-smooth(7,16,Math.abs(s-1290));
     for(let j=0;j<=across;j++){
       const derivative=(pathX(s+.1)-pathX(s-.1))/.2;
       const offset=(j/across*2-1)*w/Math.sqrt(1+derivative*derivative);
       const xx=x+offset,ss=s-offset*derivative;
-      const base=surfaceHeight(xx,ss)+.3;
-      const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),deckInfluence);
+      const ground=surfaceHeight(xx,ss),influence=1-smooth(7,20,Math.abs(ss-1290));
+      const base=ground+.025;
+      const y=THREE.MathUtils.lerp(base,Math.max(base,deckHeight),influence);
       p.push(xx,y,-ss);uv.push(j/across,s*.06);
       if(i<n&&j<across){const a=i*(across+1)+j,b=a+across+1;indices.push(a,a+1,b,a+1,b+1,b);}
     }
@@ -235,12 +235,12 @@ export const chapters = [
   note:'Before setting out, stop. The smallest movement in the valley is still worth noticing.',
   label:'Read about Yi Geng'},
  {id:'climb',name:'Experience',en:'Experience',kicker:'02 / EXPERIENCE',
-  title:['Product thinking.','Production code.'],body:'Salzburg AG · Energy software for 143 communities.',
+  title:['Product thinking.','Production code.'],body:'From product management to full-stack development.',
   at:.31,until:.51,hotspot:'My experience',
   note:'The view narrows and the pace slows. Coral markers thread together the next stretch you can actually reach.',
   label:'Read work experience'},
  {id:'summit',name:'Projects',en:'Selected projects',kicker:'03 / SELECTED PROJECTS',
-  title:['Ideas,','made real.'],body:'From a React interface to the API behind it.',
+  title:['Ideas,','made real.'],body:'Independent projects, built from curiosity.',
   at:.57,until:.75,hotspot:'Explore my projects',
   note:'Only past the ridge does the far side appear. There is no finish line here, only a wider view.',
   label:'View selected projects'},

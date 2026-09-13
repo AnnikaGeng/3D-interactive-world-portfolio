@@ -1,7 +1,7 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Component, type ReactNode, useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
+import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { cameraAt, chapters, clamp, terrainHeight } from '@/lib/terrain';
 import { PALETTE, SKY, setAtmosphere } from '@/lib/artDirection';
@@ -9,9 +9,9 @@ import World, { DEFAULT_FOREGROUND, type ForegroundSettings, landmarkPosition } 
 import PortfolioNote from './PortfolioNote';
 
 type JourneyState={target:number,current:number,yaw:number,pitch:number,dragging:boolean,reduced:boolean,focus:number|null};
-type FrameProps={state:React.RefObject<JourneyState>,onProgress:(p:number)=>void,marker:React.RefObject<HTMLButtonElement|null>,onReady:()=>void};
-function CameraJourney({state,onProgress,marker,onReady}:FrameProps){
- const {camera,scene}=useThree();
+type FrameProps={state:React.RefObject<JourneyState>,onProgress:(p:number)=>void,marker:React.RefObject<HTMLButtonElement|null>,copy:React.RefObject<HTMLElement|null>,onReady:()=>void};
+function CameraJourney({state,onProgress,marker,copy,onReady}:FrameProps){
+ const {camera,scene,size}=useThree();
  const values=useRef({pos:new THREE.Vector3(),look:new THREE.Vector3(),focusPos:new THREE.Vector3(),focusLook:new THREE.Vector3(),base:new THREE.Quaternion(),offset:new THREE.Quaternion(),point:new THREE.Vector3(),last:-1,focusMix:0,ready:false});
  useFrame((_,dt)=>{
   const v=values.current,s=state.current,delta=Math.min(dt,.05);
@@ -35,7 +35,11 @@ function CameraJourney({state,onProgress,marker,onReady}:FrameProps){
   fog.color.set(SKY.dayHaze).lerp(new THREE.Color(SKY.duskHaze),clamp((s.current-.52)/.42));
   if(marker.current){
    v.point.copy(landmarkPosition(active));const distance=camera.position.distanceTo(v.point);v.point.project(camera);
-   const visible=v.point.z<1 && v.point.z>-1 && Math.abs(v.point.x)<.88 && Math.abs(v.point.y)<.78 && distance<420 && s.focus===null;
+   // Keep the projected landmark out of the entire copy block, including its
+   // CTA. The fixed Explore action remains available when a marker is occluded.
+   const text=copy.current?.getBoundingClientRect(),left=(v.point.x*.5+.5)*size.width-30,top=(-v.point.y*.5+.5)*size.height-30;
+   const overlapsCopy=!!text&&left<text.right+18&&left+marker.current.offsetWidth>text.left-18&&top<text.bottom+18&&top+marker.current.offsetHeight>text.top-18;
+   const visible=active!==2&&v.point.z<1 && v.point.z>-1 && Math.abs(v.point.x)<.88 && Math.abs(v.point.y)<.78 && distance<420 && s.focus===null&&!overlapsCopy;
    marker.current.style.left=`${(v.point.x*.5+.5)*100}%`;marker.current.style.top=`${(-v.point.y*.5+.5)*100}%`;
    marker.current.style.visibility=visible?'visible':'hidden';marker.current.tabIndex=visible?0:-1;
   }
@@ -75,8 +79,6 @@ class SceneBoundary extends Component<{children:ReactNode},{failed:boolean}>{
 }
 export default function ImmersiveJourney(){
  const [foreground,setForeground]=useState<ForegroundSettings>(DEFAULT_FOREGROUND);
- const [tuning,setTuning]=useState(false),[settingsLoaded,setSettingsLoaded]=useState(false);
- const deferredForeground=useDeferredValue(foreground);
  useEffect(()=>{
   try{
    const saved=JSON.parse(localStorage.getItem('ascent.foreground.v1')||'null');
@@ -84,11 +86,10 @@ export default function ImmersiveJourney(){
     setForeground({height:clamp(saved.height,0,1.5),width:clamp(saved.width,.6,1.4),relief:clamp(saved.relief),offset:clamp(saved.offset,-100,0)});
    }
   }catch{}
-  setSettingsLoaded(true);
  },[]);
- useEffect(()=>{if(settingsLoaded)try{localStorage.setItem('ascent.foreground.v1',JSON.stringify(foreground));}catch{}},[foreground,settingsLoaded]);
  const state=useRef<JourneyState>({target:0,current:0,yaw:0,pitch:0,dragging:false,reduced:false,focus:null});
  const marker=useRef<HTMLButtonElement>(null);
+ const copy=useRef<HTMLElement>(null);
  const [progress,setProgress]=useState(0),[ready,setReady]=useState(false),[focus,setFocus]=useState<number|null>(null),[looking,setLooking]=useState(false),[dragging,setDragging]=useState(false);
  const active=progress<.285?0:progress<.535?1:progress<.805?2:3;
  const chapter=chapters[active];
@@ -143,7 +144,7 @@ export default function ImmersiveJourney(){
  };
  const endDrag=()=>{pointer.current.started=false;state.current.dragging=false;setDragging(false);};
  const titlePhase=clamp((progress-chapter.at)/(.14));
- const opacity=focus===null?1-clamp((titlePhase-.45)/.55)*.83:0;
+ const opacity=focus===null?1-clamp((titlePhase-.45)/.55)*.12:0;
  return <>
   <main className={`journey-shell ${ready?'is-ready':''} ${dragging?'is-dragging':''} chapter-${active}`} aria-label="Yi Geng — an interactive portfolio in four chapters">
    <div className="journey-world" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
@@ -152,24 +153,14 @@ export default function ImmersiveJourney(){
      onCreated={({gl})=>{gl.toneMapping=THREE.NoToneMapping;}}>
      <color attach="background" args={[PALETTE.paper]}/><fogExp2 attach="fog" args={[PALETTE.haze,.0025]}/>
      {/* Every material now shades itself in flat steps, so the scene needs no lights. */}
-     <Sky state={state}/><World progress={state} foreground={deferredForeground}/><CameraJourney state={state} onProgress={updateProgress} marker={marker} onReady={onReady}/>
+     <Sky state={state}/><World progress={state} foreground={foreground}/><CameraJourney state={state} onProgress={updateProgress} marker={marker} copy={copy} onReady={onReady}/>
     </Canvas></SceneBoundary>
    </div>
    <div className="journey-atmosphere" aria-hidden="true"/><div className="journey-grain" aria-hidden="true"/>
    {!ready && <div className="journey-loading"><span>YI GENG</span><p>A journey through my work</p><i/><a className="loading-resume" href="/resume">Read my résumé ↗</a></div>}
    <header className="journey-header"><a href="#" onClick={e=>{e.preventDefault();navigate(0);}} aria-label="Yi Geng — back to the start">Yi Geng</a><span className="journey-header-note">FULL-STACK DEVELOPER · JAVA & TYPESCRIPT</span><div className="journey-header-actions"><a href="/resume">Résumé <span>↗</span></a><button onClick={()=>explore(active)}>{active===3?'Contact':'Explore'} <span>↗</span></button></div></header>
-   {active===0&&focus===null&&<aside className="foreground-controls" aria-label="前景山调整">
-    <button className="foreground-toggle" aria-expanded={tuning} aria-controls="foreground-settings" onClick={()=>setTuning(value=>!value)}>前景山调整 <span aria-hidden="true">{tuning?'−':'＋'}</span></button>
-    {tuning&&<div id="foreground-settings" className="foreground-settings">
-     <p>拖动滑杆，实时调整山形。</p>
-     {([
-      ['height','山体高度',0,1.5,.05],['width','山体宽度',.6,1.4,.05],['relief','山脊起伏',0,1,.05],['offset','前后位置',-100,0,1]
-     ] as const).map(([key,label,min,max,step])=><label key={key} htmlFor={`foreground-${key}`}><span>{label}<output>{key==='offset'?`${Math.round(foreground[key])}`:`${Math.round(foreground[key]*100)}%`}</output></span><input id={`foreground-${key}`} type="range" min={min} max={max} step={step} value={foreground[key]} onChange={e=>setForeground(current=>({...current,[key]:Number(e.target.value)}))}/></label>)}
-     <div className="foreground-settings-footer"><small>自动记住本机设置</small><button onClick={()=>setForeground({...DEFAULT_FOREGROUND})}>恢复默认</button></div>
-    </div>}
-   </aside>}
    <nav className="chapter-nav" aria-label="Chapters">{chapters.map((c,i)=><button key={c.id} aria-label={`${String(i+1).padStart(2,'0')} ${c.name}`} aria-current={active===i?'step':undefined} onClick={()=>navigate(c.at)}><i/><span>{c.name}</span><small>{String(i+1).padStart(2,'0')}</small></button>)}</nav>
-   <section className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p><button className="journey-content-link" onClick={()=>explore(active)}>{chapter.hotspot} <span aria-hidden="true">↗</span></button></section>
+   <section ref={copy} className="journey-copy" key={chapter.id} style={{opacity,transform:`translateY(${-titlePhase*22}px)`}} aria-live="polite"><p className="journey-eyebrow">{chapter.kicker}</p><h1>{chapter.title.map(line=><span key={line}>{line}</span>)}</h1><p className="journey-line">{chapter.body}</p><button className="journey-content-link" onClick={()=>explore(active)}>{chapter.hotspot} <span aria-hidden="true">↗</span></button></section>
    <button className="world-hotspot" ref={marker} onClick={()=>explore(active)} aria-label={chapter.label}><span className="hotspot-ring">+</span><span className="hotspot-caption" style={{opacity:titlePhase>.8?1:0}}>{chapter.hotspot}</span></button>
    {focus!==null && <PortfolioNote chapter={focus} onClose={returnToPath}/>}
    <footer className="journey-footer"><div className="journey-location"><span>{String(active+1).padStart(2,'0')}</span><p>{chapter.en}</p></div>

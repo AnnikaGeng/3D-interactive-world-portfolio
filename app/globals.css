@@ -326,7 +326,7 @@ html, body {
 .journey-content-link{pointer-events:auto;background:rgba(18,48,62,.75);border:1px solid #ecdcc36b;border-radius:2px;padding:10px 16px;margin-top:7px;font-size:12px!important;letter-spacing:.035em;color:#f7e7cf!important;text-shadow:none}
 .journey-content-link span{margin-left:22px}
 .journey-content-link:hover{background:#173747}
-.chapter-2 .journey-line{display:table;max-width:100%;margin:24px auto 14px;padding:8px 14px;background:#f1e2cfdf;border-radius:3px;color:#405a65;font-size:14px;font-weight:400;line-height:1.65;letter-spacing:.025em;opacity:1;-webkit-text-stroke:0;text-shadow:none}
+.chapter-2 .journey-line{display:table;max-width:100%;margin:24px auto 14px;padding:8px 14px;background:none;color:#fff0d9;font-size:14px;font-weight:400;line-height:1.65;letter-spacing:.025em;opacity:1;-webkit-text-stroke:0;text-shadow:0 1px 2px #193b4a99,0 2px 8px #193b4a55}
 .chapter-2 .journey-copy h1{color:#fff0d9;-webkit-text-stroke:0;text-shadow:0 2px 3px #25445370,0 5px 20px #25445330}
 .chapter-2 .journey-copy .journey-eyebrow{-webkit-text-stroke:0}
 .chapter-2 .journey-content-link{background:#506d7bc9;border-color:#f0ddc49c}
